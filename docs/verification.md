@@ -1,4 +1,4 @@
-# 0.6.0-preview.12 — installed and real Dot accepted; Release draft pending publication (2026-10-23)
+# 0.6.0-preview.12 — installed, real Dot accepted, public Release downloads verified (2026-10-23)
 
 ## Current live verification
 
@@ -18,9 +18,9 @@ The owner completed a real Google login through ChatGPT's official Add account �
 | Isolated real Ego installation | Accepted through verified installation and image detachment; only application opening was intercepted. GUI first-run setup and a completely fresh machine remain unverified. |
 | Preview.12 native installation and live acceptance | Accepted through the installed provider and worker: fresh project read, exactly one successful correlated task, and automatic native UI transition to cloud online. |
 | Public source repository | Canonical ownership confirmed as [oxmumu3/dot-dsh-connector](https://github.com/oxmumu3/dot-dsh-connector). The uploaded 148-file source snapshot was checked through GitHub API readback: every Git blob SHA matched. |
-| Versioned Release | Three assets are uploaded to the draft [v0.6.0-preview.12 Release](https://github.com/oxmumu3/dot-dsh-connector/releases/tag/v0.6.0-preview.12); publication and independent public-download verification are not yet recorded. Asset availability is determined by that versioned Release. |
+| Versioned Release | [v0.6.0-preview.12](https://github.com/oxmumu3/dot-dsh-connector/releases/tag/v0.6.0-preview.12) was published as a prerelease at 2026-10-23 22:16:12 UTC, with `draft=false`; its fixed tag points to `39063aa9beab822df39ef6b8268e8b84b913ba2a`. All three assets passed independent unauthenticated download checks: HTTP 200, byte lengths and SHA-256 values match the accepted local artifacts and API digests. The native plugin is 177193 bytes, SHA-256 `bddb4e6e8123778c35dd8350f67c0fb27200e08740d3b6512d2b2368e173a313`. |
 
-Source snapshots and uploaded draft assets are not publication receipts. Private account, page, request and credential identifiers remain outside this public ledger. Historical sections retain what was known at each checkpoint; earlier statements about untested Google login, preinstalled Ego or unavailable public distribution do not override the current table.
+The fixed release tag and source ZIP preserve the frozen pre-publication snapshot; they are not themselves publication receipts. This ledger on `main` includes the subsequent publication and public-download receipt above. Private account, page, request and credential identifiers remain outside this public ledger. Historical sections retain what was known at each checkpoint; earlier statements about untested Google login, preinstalled Ego or unavailable public distribution do not override the current table.
 
 # Historical 0.6.0-preview.11 — installed; first connection and cold restore accepted (2026-10-23)
 
