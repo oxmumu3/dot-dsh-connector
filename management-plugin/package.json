@@ -1,0 +1,64 @@
+{
+  "name": "dot-dsh-management",
+  "version": "0.6.0-preview.12",
+  "description": "DSH 原生 Dot 连接管理页：访问记录、独立任务与连接控制",
+  "type": "module",
+  "license": "MIT",
+  "engines": {
+    "node": ">=22.15",
+    "dsh": "0.2.1-rc.2"
+  },
+  "exports": {
+    ".": "./index.js",
+    "./client": "./lib/client.js",
+    "./package.json": "./package.json"
+  },
+  "dsh": {
+    "manifestVersion": 1,
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "inject": [
+        "@deepseek-ai/dsh-api-gateway",
+        "@deepseek-ai/dsh-client-ui-layout",
+        "@deepseek-ai/dsh-client-ui-sidebar"
+      ]
+    }
+  },
+  "dependencies": {
+    "zod": "4.6.7",
+    "@deepseek-ai/dsh-typert-protocol": "0.2.1-rc.2",
+    "@modelcontextprotocol/sdk": "1.32.1",
+    "playwright-core": "1.64.1"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "~4.0.5"
+  },
+  "files": [
+    "index.js",
+    "src/",
+    "lib/",
+    "cordis.patch.yml",
+    "README.md",
+    "LICENSE",
+    "runtime/",
+    "scripts/",
+    "THIRD_PARTY_NOTICES.md",
+    "third-party-licenses/"
+  ],
+  "author": "奥克斯木木山",
+  "bin": {
+    "dot-dsh-setup": "./scripts/setup.mjs",
+    "dot-dsh-mcp-managed": "./scripts/mcp-managed.mjs"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/oxmumu3/dot-dsh-connector.git"
+  },
+  "homepage": "https://github.com/oxmumu3/dot-dsh-connector",
+  "bugs": {
+    "url": "https://github.com/oxmumu3/dot-dsh-connector/issues"
+  }
+}

@@ -1,0 +1,11 @@
+{
+  "enabled": true,
+  "principal": "dot-owner",
+  "stateDir": "/absolute/private/dot-manager-state",
+  "readUrl": "http://127.0.0.1:31471/rpc",
+  "gatewayPort": 31472,
+  "adminPort": 31473,
+  "nativeExecution": true,
+  "nativeStateDir": "/absolute/private/dot-native-task-state",
+  "workerPort": 31474
+}

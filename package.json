@@ -1,0 +1,70 @@
+{
+  "name": "dot-dsh-connector",
+  "version": "0.6.0-preview.12",
+  "description": "Owner-only Dot to DeepSeek Harness connector with native management and metadata audit",
+  "type": "module",
+  "license": "MIT",
+  "author": "奥克斯木木山",
+  "engines": {
+    "node": ">=22.15",
+    "dsh": "0.2.1-rc.2"
+  },
+  "exports": {
+    ".": "./index.js",
+    "./package.json": "./package.json"
+  },
+  "bin": {
+    "dot-dsh-mcp": "scripts/mcp.mjs",
+    "dot-dsh-setup": "management-plugin/scripts/setup.mjs"
+  },
+  "files": [
+    "index.js",
+    "src/",
+    "scripts/",
+    "docs/",
+    "examples/",
+    "fixtures/",
+    "cordis.patch.yml",
+    "README.md",
+    "LICENSE",
+    "THIRD_PARTY_NOTICES.md",
+    "third-party-licenses/",
+    "test/",
+    "npm-shrinkwrap.json",
+    "management-plugin/"
+  ],
+  "scripts": {
+    "test": "node --max-old-space-size=128 --test --test-concurrency=1 test/*.test.mjs",
+    "check": "node scripts/check.mjs",
+    "demo": "node scripts/demo.mjs",
+    "build:management": "node scripts/build-management-ui.mjs",
+    "preview:management": "node scripts/preview-management.mjs",
+    "build:plugin": "node scripts/build-management-package.mjs"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "1.32.1",
+    "playwright-core": "1.64.1",
+    "zod": "4.6.7"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/dsh-llm": "0.2.1-rc.2"
+  },
+  "peerDependenciesMeta": {
+    "@deepseek-ai/dsh-llm": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "react": "18.2.0",
+    "react-dom": "18.2.0",
+    "react-test-renderer": "18.2.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/oxmumu3/dot-dsh-connector.git"
+  },
+  "homepage": "https://github.com/oxmumu3/dot-dsh-connector",
+  "bugs": {
+    "url": "https://github.com/oxmumu3/dot-dsh-connector/issues"
+  }
+}

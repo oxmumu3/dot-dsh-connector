@@ -1,0 +1,13 @@
+node_modules/
+dist/
+.dsh/
+.env*
+*.log
+coverage/
+
+.worktrees/
+
+management-plugin/runtime/
+management-plugin/third-party-licenses/
+management-plugin/THIRD_PARTY_NOTICES.md
+.agent/

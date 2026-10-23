@@ -1,0 +1,480 @@
+// Built by scripts/build-management-ui.mjs; shared React and Zod come from DSH.
+window.__ModuleLoader__.load({id:'dot-dsh-management',factory:(require)=>(function managementClientFactory(require,remoteFactory=createManagementRemote,uiFactory=createManagementUI,workerFactory){
+ const React=require('react'),{z}=require('zod');
+ const contribution=remoteFactory(z);
+ const byTool=new Map(Object.entries(contribution.methods).map(([method,definition])=>[definition.tool,{method,...definition}]));
+ const diagnostics=new Set(['gateway/invocation-unavailable','gateway/definition-unavailable','gateway/service-unavailable','gateway/method-unavailable','gateway/binding-invalid','gateway/input-invalid','gateway/bad-request','gateway/internal','gateway/cancelled','dot-management/denied','dot-management/unsupported','dot-management/busy','dot-management/unavailable','dot-management/invalid-request']);
+ const diagnosticCode=(error,fallback)=>{try{const code=error?.code;return diagnostics.has(code)?code:fallback;}catch{return fallback;}};
+ const failure=code=>Object.assign(new Error(code==='dot-management/input-invalid'?'Invalid management request.':'Management service is unavailable.'),{code});
+ function createNativeAdapter(remote,navigation,registry){return {supports:tool=>byTool.has(tool),canOpenSession:()=>Boolean(navigation?.current),async openSession(job){if(!navigation?.current||!job?.session_id)throw failure('dot-management/unavailable');navigation.current.openSession(job.session_id);},async ensureWorkspace(){
+  const service=registry?.current,ui=navigation?.current;
+  if(!service?.list?.getSnapshot||!service?.create)throw failure('dot-management/unavailable');
+  const assertCurrent=()=>{if(registry?.current!==service||navigation?.current!==ui)throw failure('dot-management/unavailable');};
+  const read=()=>{const value=service.list.getSnapshot();if(!value||!Array.isArray(value.items)||value.state==='error')throw failure('dot-management/unavailable');return value.phase==='ready'?value:undefined;};
+  let snapshot=read();
+  if(!snapshot)snapshot=await new Promise((resolve,reject)=>{let dispose,finished=false;const finish=(error,value)=>{if(finished)return;finished=true;clearTimeout(timer);dispose?.();error?reject(error):resolve(value);},check=()=>{try{const value=read();if(value)finish(null,value);}catch(error){finish(error);}},timer=setTimeout(()=>finish(failure('dot-management/unavailable')),10000);dispose=service.list.subscribe(check);check();if(finished)dispose?.();});
+  assertCurrent();
+  // Only the native registry is executable; the reader's virtual memory/skills roots are excluded.
+  if(snapshot.items.some(item=>typeof item.workspaceId==='string'&&typeof item.path==='string'&&item.path.startsWith('/')))return true;
+  if(typeof ui?.pickDirectory!=='function')throw failure('dot-management/unavailable');
+  const path=await ui.pickDirectory();assertCurrent();if(path===null)return false;
+  if(typeof path!=='string'||!path.startsWith('/')||path.includes('\0'))throw failure('dot-management/unavailable');
+  const workspace=await service.create({path});assertCurrent();if(typeof workspace?.workspaceId!=='string'||workspace.path!==path)throw failure('dot-management/unavailable');return true;
+ },async call(tool,args){
+  const definition=byTool.get(tool);let valid=false;
+  try{valid=definition?.schema.safeParse(args).success===true;}catch{}
+  if(!valid)throw failure('dot-management/input-invalid');
+  let result;
+  try{result=await remote.dotDshManagement[definition.method](args);}
+  catch(error){throw failure(diagnosticCode(error,'dot-management/remote-threw'));}
+  let ok;
+  try{if(result!==null&&typeof result==='object'&&!Array.isArray(result))ok=result.ok;}catch{}
+  if(typeof ok!=='boolean')throw failure('dot-management/invalid-response');
+  if(!ok){
+   let code='dot-management/remote-error';
+   try{code=diagnosticCode(result.error,code);}catch{}
+   throw failure(code);
+  }
+  try{return result.value;}catch{throw failure('dot-management/invalid-response');}
+ }};}
+ async function apply(ctx){
+  await ctx.remote.$mount({package:contribution.package,descriptors:contribution.descriptors});
+  await ctx.inject(['remote.dotDshManagement'],child=>{
+   const navigation={current:null},registry={current:null};
+   const Page=uiFactory(React,createNativeAdapter(child.remote,navigation,registry));
+   // Official UiWorkspace service selects an owned Session and reveals its Conversation.
+   child.inject(['uiWorkspace'],scope=>{navigation.current=scope.uiWorkspace;scope.effect?.(()=>()=>{if(navigation.current===scope.uiWorkspace)navigation.current=null;});});
+   child.inject(['workspaces'],scope=>{registry.current=scope.workspaces;scope.effect?.(()=>()=>{if(registry.current===scope.workspaces)registry.current=null;});});
+   // A renderer-scoped worker continues when the management page is hidden.
+   if(workerFactory&&globalThis.location?.protocol==='dsh-app:'&&globalThis.location?.hostname==='app')child.inject(['remote.workspace','remote.session'],scope=>{
+    const legacyCodes=new Set(['gateway/method-unavailable','gateway/definition-unavailable','dot-management/invalid-request']);
+    const poll=async()=>{let result;try{result=await child.remote.dotDshManagement.workerPoll({});}catch(error){if(legacyCodes.has(error?.code))return child.remote.dotDshManagement.overview({});throw error;}return result?.ok===false&&legacyCodes.has(result.error?.code)?child.remote.dotDshManagement.overview({}):result;};
+    const worker=workerFactory({remote:scope.remote,overview:poll});
+    scope.effect(()=>{worker.start();return()=>worker.close();});
+   });
+   child.slots.inject('main',()=>child.slots.register({name:'main',key:'dot-management'},Page));
+   const Icon=()=>React.createElement('svg',{width:16,height:16,viewBox:'0 0 20 20',fill:'none','aria-hidden':true},React.createElement('rect',{x:3,y:3,width:14,height:14,rx:3,stroke:'currentColor',strokeWidth:1.3}),React.createElement('path',{d:'M6 7h8M6 10h8M6 13h5',stroke:'currentColor',strokeWidth:1.3,strokeLinecap:'round'}));
+   child.slots.inject('sidebar.panellist',()=>child.slots.register({name:'sidebar.panellist',id:'dot-management',order:15,label:'Dot 连接'},Icon));
+  });
+ }
+ return {inject:['slots','remote'],apply,createNativeAdapter,createManagementUI:uiFactory};
+})(require,function createManagementRemote(z) {
+ const page={offset:z.number().int().min(0).max(Number.MAX_SAFE_INTEGER).optional(),limit:z.number().int().min(1).max(100).optional()};
+ const jobId=z.string().regex(/^[A-Za-z0-9_-]{1,100}$/);
+ const statuses=['accepted','starting','running','cancel_requested','succeeded','failed','cancelled','unknown'];
+ const definitions=[
+  ['overview','manager_overview',z.strictObject({include_control:z.boolean().optional()})],
+  ['events','manager_events',z.strictObject({...page,category:z.enum(['read','task','control']).optional(),outcome:z.enum(['pending','succeeded','failed','unknown','denied']).optional()})],
+  ['jobs','manager_jobs',z.strictObject({...page,status:z.enum(statuses).optional(),workspace_id:z.string().min(1).max(512).optional(),request_id:jobId.optional(),archived:z.boolean().optional()})],
+  ['job','manager_job',z.strictObject({job_id:jobId})],
+  ['setPaused','manager_set_paused',z.strictObject({paused:z.boolean()})],
+  ['cancel','manager_cancel',z.strictObject({job_id:jobId})],
+  ['workerPoll','manager_worker_poll',z.strictObject({})],
+  ['archive','manager_archive',z.strictObject({job_id:jobId,archived:z.boolean().optional()})],
+  ['followup','manager_followup',z.strictObject({job_id:jobId,task:z.string().trim().min(1).max(8000),request_id:jobId,mode:z.enum(['after_complete','queue','steer']).optional()})],
+  ...['Status','Prepare','Start','Stop'].map(name=>[`setup${name}`,`manager_setup_${name.toLowerCase()}`,z.strictObject({})]),
+  ...['Status','Start','Resume','Cancel','Open'].map(name=>[`setupConnect${name}`,`manager_setup_connect_${name.toLowerCase()}`,z.strictObject({})]),
+ ];
+ const descriptors=definitions.map(([method,,schema])=>({
+  id:`dot-dsh-management#dotDshManagement/${method}`,
+  service:'dotDshManagement',namespace:'dotDshManagement',method,
+  invocation:{kind:'direct'},cancellation:{parameter:'signal'},
+  parameters:[{name:'request',wire:'request',source:'json',codec:{mode:'strict',typeSymbol:`dot-dsh-management#${method}Request`,create:()=>schema},strictCodec:{mode:'strict',typeSymbol:`dot-dsh-management#${method}Request`,create:()=>schema}}],
+  result:{mode:'strict',typeSymbol:`dot-dsh-management#${method}Result`,create:()=>z.json()},
+ }));
+ return {package:'dot-dsh-management',descriptors,
+  methods:Object.fromEntries(definitions.map(([method,tool,schema])=>[method,{tool,schema}])),
+ };
+},function createManagementUI(React,adapter){
+ const h=React.createElement;
+ const diagnostics=new Set(['gateway/invocation-unavailable','gateway/definition-unavailable','gateway/service-unavailable','gateway/method-unavailable','gateway/binding-invalid','gateway/input-invalid','gateway/bad-request','gateway/internal','gateway/cancelled','dot-management/denied','dot-management/unsupported','dot-management/busy','dot-management/unavailable','dot-management/invalid-request','dot-management/input-invalid','dot-management/remote-threw','dot-management/invalid-response','dot-management/remote-error']);
+ const diagnosticCode=error=>{try{const code=error?.code;return diagnostics.has(code)?code:'dot-management/request-failed';}catch{return'dot-management/request-failed';}};
+ const labels={accepted:'已接收',starting:'启动中',running:'运行中',cancel_requested:'正在取消',succeeded:'已完成',failed:'失败',cancelled:'已取消',unknown:'待核实',pending:'处理中',denied:'已拒绝'};
+ const tools={harness_status:'检查 Harness',harness_list_workspaces:'列出项目',harness_list_sessions:'查找会话',harness_read_session:'读取会话',harness_list_directory:'浏览目录',harness_read_file:'读取文件',harness_start_task:'派发项目任务',harness_get_task:'查询项目任务',harness_followup_task:'继续项目任务',harness_cancel_task:'取消项目任务',list_projects:'列出测试项目',read_project_context:'读取任务材料',start_task:'提交测试任务',get_task:'查询测试任务',cancel_task:'取消测试任务',manager_set_paused:'修改接入状态',manager_cancel:'从管理页取消'};
+ const css=`
+.dsh-dot-management{--dm-bg:#f5f7fa;--dm-surface:#fff;--dm-text:#1d2635;--dm-muted:#697588;--dm-line:#e1e6ee;--dm-soft:#f0f3f8;--dm-accent:#285fd4;--dm-accent-soft:#edf2ff;--dm-accent-ink:#214fae;height:100%;overflow:auto;background:var(--dm-bg);color:var(--dm-text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;font-size:14px;line-height:1.6;isolation:isolate}.dsh-dot-management *{box-sizing:border-box}.dm-wrap{max-width:1216px;margin:auto;padding:calc(var(--dsh-frame-top-clearance,16px) + 20px) 48px 44px}.dm-header,.dm-actions,.dm-tabs,.dm-filters,.dm-page,.dm-detail-head,.dm-section-head{display:flex;align-items:center;gap:12px}.dm-header{justify-content:space-between;gap:24px;padding-bottom:26px}.dm-brand{display:flex;align-items:center;gap:12px}.dm-brand-mark{width:38px;height:38px;display:grid;place-items:center;background:var(--dm-accent);color:#fff;border-radius:11px;flex:none}.dm-kicker{font-size:10px;font-weight:600;color:var(--dm-muted);letter-spacing:.13em;text-transform:uppercase}.dm-header h1{font-size:17px;letter-spacing:-.02em;line-height:1.35;font-weight:650;margin:1px 0 0}.dm-header p{font-size:12px;color:var(--dm-muted);margin:0}.dm-header-status{display:flex;align-items:center;flex-wrap:wrap;gap:8px;margin-top:12px}.dm-pill{display:inline-flex;align-items:center;gap:7px;min-height:25px;font-size:11px;color:var(--dm-muted);border:1px solid var(--dm-line);border-radius:20px;padding:2px 9px;background:var(--dm-surface)}.dm-pill[data-state=online]{color:var(--dm-accent-ink);background:var(--dm-accent-soft);border-color:transparent}.dm-dot{display:inline-block;width:5px;height:5px;border-radius:50%;background:currentColor;flex:none}.dm-header-history{font-size:11px;color:var(--dm-muted)}.dm-header-history summary{font-size:11px;cursor:pointer}.dm-header-history p{max-width:580px;padding-top:7px;line-height:1.7}.dm-actions{flex-wrap:wrap}.dm-button,.dm-select,.dm-input{font:inherit;color:var(--dm-text);background:var(--dm-surface);border:1px solid var(--dm-line);border-radius:7px;min-height:40px;padding:8px 13px;min-width:0}.dm-button{cursor:pointer;font-size:12px;font-weight:550;white-space:nowrap;transition:background .14s,color .14s,border-color .14s}.dm-button:hover:not(:disabled){background:var(--dm-soft);border-color:var(--dm-muted)}.dm-button:disabled{opacity:.46;cursor:default}.dm-button:focus-visible,.dm-select:focus-visible,.dm-tab:focus-visible,.dm-link:focus-visible,.dm-input:focus-visible,summary:focus-visible,.dm-pre:focus-visible{outline:2px solid var(--dm-accent);outline-offset:4px}.dm-primary{background:var(--dm-accent);color:#fff;border-color:var(--dm-accent)}.dm-primary:hover:not(:disabled){background:var(--dm-accent-ink);border-color:var(--dm-accent-ink)}.dm-quiet{background:transparent}.dm-tabs{border-bottom:1px solid var(--dm-line);gap:30px;overflow:auto}.dm-tab{font:inherit;font-size:13px;color:var(--dm-muted);cursor:pointer;border:0;background:transparent;padding:13px 0 15px;border-bottom:2px solid transparent;white-space:nowrap;min-height:48px}.dm-tab[aria-selected=true]{color:var(--dm-text);border-bottom-color:var(--dm-accent);font-weight:650}.dm-body{padding-top:32px}.dm-hero{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:end;gap:24px;margin-bottom:30px}.dm-hero h2{font-size:clamp(28px,3vw,38px);line-height:1.25;font-weight:650;letter-spacing:-.05em;margin:10px 0 13px}.dm-hero p{margin:0;max-width:590px;color:var(--dm-muted);font-size:14px;line-height:1.85}.dsh-dot-management[data-connected=true] .dm-hero{margin-bottom:23px}.dsh-dot-management[data-connected=true] .dm-hero h2{font-size:29px;line-height:1.3;margin-top:8px;margin-bottom:9px}.dm-date{font-size:11px;line-height:1.6;color:var(--dm-muted);text-align:right;white-space:nowrap}.dm-workspace{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(280px,.9fr);gap:36px;align-items:start}.dm-section{margin-top:28px}.dm-section h2,.dm-section-head h2{font-size:15px;font-weight:650;letter-spacing:-.02em;margin:0}.dm-section h3{font-size:13px;font-weight:600}.dm-section-head{justify-content:space-between;margin-bottom:16px;flex-wrap:wrap}.dm-section-head .dm-link{color:var(--dm-muted);font-size:12px}.dm-section-label{font-size:11px;font-weight:550;color:var(--dm-muted);letter-spacing:.03em}.dm-count{font-size:11px;font-weight:500;color:var(--dm-muted);border:1px solid var(--dm-line);border-radius:4px;padding:1px 5px;line-height:1.4;font-variant-numeric:tabular-nums;margin-left:7px}.dm-work-status{display:flex;gap:18px;flex-wrap:wrap;color:var(--dm-muted);font-size:12px;padding:13px 0 16px;border-top:1px solid var(--dm-line)}.dm-work-status strong{font-weight:550;color:var(--dm-text);margin-left:5px}.dm-job-list{list-style:none;padding:0;margin:0}.dm-job-list li{border-top:1px solid var(--dm-line);padding:16px 0;display:grid;grid-template-columns:1fr auto;gap:10px 16px;align-items:center}.dm-job-title{font-size:14px;font-weight:550;line-height:1.5;margin-bottom:3px}.dm-job-meta{font-size:11px;color:var(--dm-muted);overflow-wrap:anywhere}.dm-job-state{font-size:11px;color:var(--dm-muted);text-align:right}.dm-job-state[data-state=running],.dm-job-state[data-state=starting],.dm-job-state[data-state=accepted]{color:var(--dm-accent-ink)}.dm-start-panel{background:var(--dm-surface);border:1px solid var(--dm-line);border-radius:12px;padding:23px 24px}.dm-start-panel h2{font-size:19px;font-weight:600;letter-spacing:-.03em;margin:9px 0 12px;line-height:1.5}.dm-start-panel p{color:var(--dm-muted);font-size:12px;line-height:1.85;margin:0 0 15px}.dm-start-panel .dm-pre{font-size:13px;background:var(--dm-bg);padding:14px 15px;margin:0 0 16px;line-height:1.8;max-height:none}.dm-start-panel .dm-button{width:100%}.dm-start-panel-footer{margin:14px 0 0!important;font-size:11px!important;color:var(--dm-muted)}.dm-empty{padding:36px 14px;text-align:center;color:var(--dm-muted);font-size:12px;border-top:1px solid var(--dm-line)}.dm-empty strong{display:block;color:var(--dm-text);font-size:14px;font-weight:550;margin-bottom:6px}.dm-wizard{background:var(--dm-surface);border:1px solid var(--dm-line);border-radius:12px;padding:26px 28px;margin:0 0 30px}.dm-wizard-top{display:flex;justify-content:space-between;align-items:flex-start;gap:20px}.dm-wizard h2{font-size:20px;letter-spacing:-.03em;font-weight:600;margin:5px 0 7px;line-height:1.45}.dm-wizard-intro{font-size:13px;color:var(--dm-muted);max-width:640px;margin:0;line-height:1.8}.dm-steps{list-style:none;padding:0;margin:26px 0 24px;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:22px}.dm-step{border-top:2px solid var(--dm-line);padding-top:13px;display:flex;align-items:flex-start;gap:10px}.dm-step[data-current=true],.dm-step[data-complete=true]{border-top-color:var(--dm-accent)}.dm-step-index{font-size:10px;color:var(--dm-muted);line-height:22px;min-width:20px;height:22px;text-align:center;border:1px solid var(--dm-line);border-radius:5px}.dm-step[data-current=true] .dm-step-index,.dm-step[data-complete=true] .dm-step-index{background:var(--dm-accent-soft);color:var(--dm-accent-ink);border-color:transparent}.dm-step strong{display:block;font-size:12px;font-weight:600}.dm-step small{display:block;font-size:11px;color:var(--dm-muted);margin-top:3px;line-height:1.6}.dm-wizard-progress{display:flex;align-items:flex-start;gap:10px;padding:14px 0 17px;border-top:1px solid var(--dm-line);font-size:13px;line-height:1.75}.dm-progress-mark{color:var(--dm-accent);padding-top:3px}.dm-progress-mark .dm-dot{width:6px;height:6px}.dm-wizard-progress p{margin:0}.dm-wizard-wait{display:block;color:var(--dm-muted);font-size:11px;margin-top:5px}.dm-verification{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));list-style:none;padding:0;margin:13px 0 20px;gap:8px 18px}.dm-verification li{font-size:11px;display:flex;justify-content:space-between;gap:12px;color:var(--dm-muted)}.dm-verification b{font-size:10px;font-weight:500;color:var(--dm-muted);white-space:nowrap}.dm-verification li[data-complete=true] b{color:var(--dm-accent-ink)}.dm-facts{display:grid;grid-template-columns:minmax(120px,170px) 1fr;gap:9px 18px;font-size:12px;margin:0}.dm-facts dt{color:var(--dm-muted)}.dm-facts dd{margin:0;overflow-wrap:anywhere}.dm-note{color:var(--dm-muted);font-size:11px;line-height:1.8;margin:15px 0 0}.dm-muted{color:var(--dm-muted)}.dm-notice{border:1px solid var(--dm-line);border-left:2px solid var(--dm-accent);border-radius:6px;background:var(--dm-soft);padding:12px 15px;margin:0 0 18px;font-size:12px;line-height:1.8}.dm-notice details{margin-top:6px;font-size:10px;color:var(--dm-muted)}.dm-filters{flex-wrap:wrap;align-items:flex-end;margin:24px 0 18px;gap:12px 16px}.dm-filters label{display:flex;flex-direction:column;align-items:flex-start;gap:5px;color:var(--dm-muted);font-size:11px}.dm-filters form{display:flex;gap:8px;align-items:flex-end}.dm-select,.dm-input{font-size:12px;min-height:38px;padding:7px 10px;max-width:100%}.dm-textarea{display:block;width:100%;min-height:100px;resize:vertical;margin:8px 0 12px;line-height:1.8}.dm-table-wrap{overflow:auto;border:1px solid var(--dm-line);border-radius:10px;background:var(--dm-surface)}.dm-table{width:100%;border-collapse:collapse;text-align:left;white-space:nowrap;font-size:12px}.dm-table th{font-size:10px;font-weight:500;color:var(--dm-muted);background:var(--dm-bg);padding:11px 15px}.dm-table td{border-top:1px solid var(--dm-line);padding:15px;vertical-align:top}.dm-table .dm-object{max-width:340px;overflow:hidden;text-overflow:ellipsis}.dm-table .dm-time{color:var(--dm-muted);font-variant-numeric:tabular-nums}.dm-link{padding:0;border:0;background:transparent;color:inherit;font:inherit;text-align:left;cursor:pointer;text-decoration:underline;text-underline-offset:3px;text-decoration-color:var(--dm-line)}.dm-link:hover:not(:disabled){color:var(--dm-accent-ink);text-decoration-color:currentColor}.dm-link:disabled{cursor:default;opacity:.5}.dm-status{font-size:11px}.dm-page{justify-content:flex-end;padding:16px 0;color:var(--dm-muted);font-size:11px}.dm-page span{margin-right:auto}.dm-detail{border-top:2px solid var(--dm-text);padding:24px 0 0;margin-top:26px}.dm-detail-head{justify-content:space-between;margin-bottom:19px}.dm-detail h2{font-size:17px;font-weight:600;margin:0}.dm-detail h3{font-size:13px;font-weight:600;margin:22px 0 9px}.dm-pre{font:inherit;font-size:12px;line-height:1.85;white-space:pre-wrap;overflow-wrap:anywhere;background:var(--dm-soft);border-radius:7px;padding:16px;margin:0;max-height:420px;overflow:auto}.dm-detail-actions{margin-top:20px;display:flex;align-items:center;gap:12px;flex-wrap:wrap}.dm-loading{color:var(--dm-muted);font-size:11px;padding:12px 0}.dm-recent{list-style:none;padding:0;margin:0}.dm-recent li{display:flex;justify-content:space-between;align-items:flex-start;gap:20px;border-top:1px solid var(--dm-line);padding:12px 0;font-size:12px}.dm-recent small{color:var(--dm-muted);font-size:10px;overflow-wrap:anywhere}.dm-scope{padding:19px 0;border-top:1px solid var(--dm-line);margin-top:24px}.dm-scope h2{font-size:13px;margin:0 0 10px}.dm-scope p{font-size:12px;color:var(--dm-muted);line-height:1.8;margin:8px 0}.dm-diagnostics{border-top:1px solid var(--dm-line);padding:18px 0;margin-top:25px}.dm-diagnostics>summary{font-size:12px;color:var(--dm-muted);cursor:pointer}.dm-diagnostics[open]>summary{margin-bottom:20px}.dm-diagnostics h2{font-size:13px;margin:22px 0 13px}.dm-updated{font-size:10px;color:var(--dm-muted);margin-top:15px}.dm-settings-title{font-size:22px;letter-spacing:-.03em;font-weight:600;margin:0 0 7px}.dm-compat{font-size:11px}.dm-native-note{font-size:11px;color:var(--dm-muted);margin:18px 0}.dm-no-wrap{white-space:nowrap}
+@media(prefers-color-scheme:dark){html:not([data-ds-theme-source=light]) .dsh-dot-management{--dm-bg:#171c25;--dm-surface:#1e2531;--dm-text:#edf1f7;--dm-muted:#9aa7bb;--dm-line:#343e4e;--dm-soft:#252e3d;--dm-accent:#80a7ff;--dm-accent-soft:#263a60;--dm-accent-ink:#b3cbff}html:not([data-ds-theme-source=light]) .dm-primary{color:#101c35}}body[data-ds-dark-theme] .dsh-dot-management{--dm-bg:#171c25;--dm-surface:#1e2531;--dm-text:#edf1f7;--dm-muted:#9aa7bb;--dm-line:#343e4e;--dm-soft:#252e3d;--dm-accent:#80a7ff;--dm-accent-soft:#263a60;--dm-accent-ink:#b3cbff}body[data-ds-dark-theme] .dm-primary{color:#101c35}html[data-ds-theme-source=light] .dsh-dot-management{--dm-bg:#f5f7fa;--dm-surface:#fff;--dm-text:#1d2635;--dm-muted:#697588;--dm-line:#e1e6ee;--dm-soft:#f0f3f8;--dm-accent:#285fd4;--dm-accent-soft:#edf2ff;--dm-accent-ink:#214fae}
+@media(max-width:1050px){.dm-wrap{padding-left:28px;padding-right:28px}.dm-workspace{grid-template-columns:minmax(0,1.3fr) minmax(265px,1fr);gap:24px}.dm-wizard{padding:23px}.dm-header-history p{max-width:410px}}@media(max-width:760px){.dm-wrap{padding-left:20px;padding-right:20px}.dm-header{align-items:flex-start;padding-bottom:19px;gap:15px}.dm-header>.dm-actions{justify-content:flex-end}.dm-header>.dm-actions .dm-button{padding:7px 10px;font-size:11px}.dm-brand-mark{width:34px;height:34px;border-radius:9px}.dm-tabs{gap:23px}.dm-body{padding-top:24px}.dm-hero{grid-template-columns:1fr;gap:13px;margin-bottom:24px}.dm-hero h2{font-size:29px}.dm-date{display:none}.dm-workspace{grid-template-columns:1fr;gap:28px}.dm-start-panel{padding:20px}.dm-start-panel h2{font-size:17px}.dm-wizard{padding:20px}.dm-wizard-top{display:block}.dm-steps{gap:12px;margin-top:22px}.dm-step{display:block}.dm-step-index{display:inline-block;margin-bottom:7px}.dm-step small{font-size:10px}.dm-step strong{font-size:11px}.dm-verification{grid-template-columns:1fr}.dm-facts{grid-template-columns:100px 1fr;gap:9px 12px}.dm-filters{gap:10px}.dm-filters label{flex:1 1 130px}.dm-filters .dm-select,.dm-filters .dm-input{width:100%}.dm-filters form{width:100%;flex-wrap:wrap}.dm-filters form label{flex:1 1 150px}.dm-table .dm-object{max-width:210px}.dm-header-history{max-width:100%}.dm-header-status{gap:6px}.dm-job-list li{padding:15px 0}.dm-job-title{font-size:13px}.dm-job-meta{font-size:10px}.dm-hero p{font-size:13px}.dm-header p{font-size:11px}.dm-recent li{gap:12px}}@media(max-width:430px){.dm-header{display:block}.dm-header>.dm-actions{margin-top:15px;justify-content:flex-start}.dm-tabs{justify-content:space-between;gap:12px}.dm-tab{font-size:12px}.dm-wizard{padding:18px}.dm-hero h2{font-size:27px}.dm-job-list li{grid-template-columns:minmax(0,1fr);gap:5px}.dm-job-state{text-align:left}.dm-page{gap:8px}.dm-page .dm-button{padding:7px 9px}.dm-step small{line-height:1.6}.dm-start-panel .dm-pre{padding:12px}.dm-wrap{padding-bottom:28px}}@media(prefers-reduced-motion:reduce){.dsh-dot-management *{transition:none!important;animation:none!important;scroll-behavior:auto!important}}
+`;
+ const time=value=>{if(!value)return'—';const date=new Date(value);return Number.isNaN(date.getTime())?'—':date.toLocaleString('zh-CN',{hour12:false});};
+ const terminal=job=>['succeeded','failed','cancelled'].includes(job?.status);
+ const status=value=>labels[value]??'待核实';
+ const jobState=job=>({queued:'等待执行',waiting_for_answer:'需要你处理：等待回答',waiting_for_approval:'需要你处理：等待审批',needs_reconcile:'需要核对原会话',cancelling:'正在取消'})[job.stage]??(job.pending_approvals||job.user_question_count?'需要你处理':job.status==='accepted'&&job.mode==='queue'?'等待本轮结束':status(job.status));
+ const projectOf=job=>job.workspace_name||job.project_name||job.workspace_id||job.project_id||'未命名项目';
+ const titleOf=job=>job.session_name||job.task?.slice(0,100)||job.job_id;
+ const objectOf=event=>{const s=event?.selectors??{};return s.path||s.job_id||s.session_id||s.workspace_id||s.project_id||'连接器';};
+ const info=(name,value)=>[h('dt',{key:`${name}-term`},name),h('dd',{key:`${name}-value`},String(value??'—'))];
+ const option=(value,text)=>h('option',{key:value,value},text);
+ const select=(label,value,onChange,entries)=>h('label',null,label,h('select',{className:'dm-select',value,onChange:e=>onChange(e.target.value),'aria-label':label},entries.map(([v,text])=>option(v,text))));
+ const empty=(title,note)=>h('div',{className:'dm-empty'},h('strong',null,title),note);
+ const badge=value=>h('span',{className:'dm-status'},status(value));
+ const example='请列出 Harness 已登记的项目，让我选择一个；在所选项目中新建任务，阅读项目说明并列出三项下一步建议，不修改文件。完成后返回任务编号和结果。';
+ const supports=tool=>typeof adapter.supports!=='function'||adapter.supports(tool);
+ function Page(){
+  const [tab,setTab]=React.useState('overview'),[offset,setOffset]=React.useState(0),[category,setCategory]=React.useState(''),[outcome,setOutcome]=React.useState(''),[jobStatus,setJobStatus]=React.useState(''),[archive,setArchive]=React.useState('active'),[workspace,setWorkspace]=React.useState(''),[search,setSearch]=React.useState(''),[requestId,setRequestId]=React.useState('');
+  const [recentJobs,setRecentJobs]=React.useState([]);
+  const [overview,setOverview]=React.useState(null),[pages,setPages]=React.useState({}),[detail,setDetail]=React.useState(null),[setup,setSetup]=React.useState(null),[loading,setLoading]=React.useState(false),[busy,setBusy]=React.useState(false),[errors,setErrors]=React.useState({}),[updated,setUpdated]=React.useState({}),[armed,setArmed]=React.useState(null),[message,setMessage]=React.useState(''),[draft,setDraft]=React.useState(''),[followMode,setFollowMode]=React.useState('queue');
+  const [clock,setClock]=React.useState(()=>Date.now());
+  const alive=React.useRef(true),refreshing=React.useRef(false),rerun=React.useRef(false),actionPending=React.useRef(false),tail=React.useRef(Promise.resolve()),selected=React.useRef(null),selection=React.useRef(0),refreshRef=React.useRef(null),viewRef=React.useRef(null),protocolRef=React.useRef(null),attempt=React.useRef(null),projects=React.useRef(new Map()),connectPolling=React.useRef(false),detailHeading=React.useRef(null),detailFocus=React.useRef(null),returnFocus=React.useRef(null),jobTriggers=React.useRef(new Map()),connectionHistory=React.useRef(null);
+  const pageKey=JSON.stringify([tab,offset,category,outcome,jobStatus,archive,workspace,requestId]);
+  viewRef.current={tab,offset,category,outcome,jobStatus,archive,workspace,requestId,key:pageKey};
+  const call=(tool,args)=>{
+   const next=tail.current.catch(()=>{}).then(()=>{if(!alive.current)throw new Error('Disposed');return adapter.call(tool,args);});
+   tail.current=next;return next;
+  };
+  const saveError=(key,failure)=>{if(alive.current)setErrors(previous=>({...previous,[key]:diagnosticCode(failure)}));};
+  const success=key=>{if(alive.current){setClock(Date.now());setErrors(previous=>({...previous,[key]:''}));setUpdated(previous=>({...previous,[key]:new Date().toISOString()}));}};
+  const readDetail=async(id,token)=>{
+   try{const value=await call('manager_job',{job_id:id});if(alive.current&&selected.current===id&&selection.current===token){setDetail({kind:'job',value:value.job,cached:value.cached===true});if(value.cached)saveError('detail',{code:'dot-management/unavailable'});else success('detail');}}
+   catch(failure){if(alive.current&&selected.current===id&&selection.current===token){setDetail(previous=>previous?{...previous,cached:true}:null);saveError('detail',failure);}}
+  };
+  const refresh=async()=>{
+   if(refreshing.current||actionPending.current||!alive.current)return;
+   refreshing.current=true;setLoading(true);const view=viewRef.current;
+   let overviewFailed=false;
+   try{
+    try{const value=await call('manager_overview',{include_control:false});if(alive.current){protocolRef.current=value.management_protocol;setOverview(value);success('overview');}}
+    catch(failure){overviewFailed=true;saveError('overview',failure);}
+    if(alive.current&&view.key===viewRef.current.key&&(view.tab==='jobs'||view.tab==='events')){
+     const args=view.tab==='jobs'?{offset:view.offset,limit:20,...view.jobStatus?{status:view.jobStatus}:{},...protocolRef.current?.features?.task_filters?{archived:view.archive==='archived',...view.workspace?{workspace_id:view.workspace}:{},...view.requestId?{request_id:view.requestId}:{}}:{}}:{offset:view.offset,limit:20,...view.category?{category:view.category}:{},...view.outcome?{outcome:view.outcome}:{}};
+     try{const value=await call(view.tab==='jobs'?'manager_jobs':'manager_events',args);if(alive.current){if(view.tab==='jobs')for(const job of value.items??[])projects.current.set(job.workspace_id??job.project_id,projectOf(job));setPages(previous=>({...previous,[view.key]:value}));success(view.key);}}
+     catch(failure){saveError(view.key,failure);}
+    }
+    if(alive.current&&view.tab==='overview'&&!overviewFailed&&adapter.supports?.('manager_jobs')){
+     try{const value=await call('manager_jobs',{offset:0,limit:4,...protocolRef.current?.features?.task_filters?{archived:false}:{}});if(alive.current){setRecentJobs(value.items??[]);success('recentJobs');}}
+     catch(failure){saveError('recentJobs',failure);}
+    }
+    if(alive.current&&selected.current)await readDetail(selected.current,selection.current);
+    if(alive.current&&adapter.supports?.('manager_setup_status')){
+     try{const value=await call('manager_setup_status',{});if(alive.current){setSetup(value);success('setup');}}catch(failure){saveError('setup',failure);}
+    }
+   }finally{
+    refreshing.current=false;
+    if(alive.current){setLoading(false);if(rerun.current){rerun.current=false;void refreshRef.current();}}
+   }
+  };
+  refreshRef.current=refresh;
+  React.useEffect(()=>{alive.current=true;return()=>{alive.current=false;selection.current++;};},[]);
+  React.useEffect(()=>{if(refreshing.current)rerun.current=true;else void refreshRef.current();},[pageKey]);
+  React.useEffect(()=>{
+   const document=globalThis.document,tick=()=>{if(document?.visibilityState!=='hidden'){setClock(Date.now());void refreshRef.current();}};
+   const timer=setInterval(tick,10000);document?.addEventListener?.('visibilitychange',tick);
+   return()=>{clearInterval(timer);document?.removeEventListener?.('visibilitychange',tick);};
+  },[]);
+  const connectPhase=setup?.connection_setup?.phase;
+  React.useEffect(()=>{
+   if(!['overview','settings'].includes(tab)||!['preparing','installing','login','authorize','connecting','verifying','restoring'].includes(connectPhase)||!adapter.supports?.('manager_setup_connect_status'))return;
+   const poll=async()=>{
+    if(globalThis.document?.visibilityState==='hidden'||connectPolling.current||actionPending.current||!alive.current)return;
+    connectPolling.current=true;
+    try{const value=await call('manager_setup_connect_status',{});if(alive.current){setSetup(previous=>({...previous,connection_setup:value}));success('connect');}}
+    catch(failure){saveError('connect',failure);}
+    finally{connectPolling.current=false;}
+   };
+   const timer=setInterval(()=>void poll(),2000);return()=>clearInterval(timer);
+  },[connectPhase,tab]);
+  React.useEffect(()=>{if(!armed)return;const timer=setTimeout(()=>setArmed(null),5000);return()=>clearTimeout(timer);},[armed]);
+  React.useLayoutEffect(()=>{
+   const intent=detailFocus.current;if(!intent||detail?.kind!=='job'||intent.token!==selection.current||detail.value?.job_id!==intent.id)return;
+   detailFocus.current=null;detailHeading.current?.scrollIntoView?.({behavior:'auto',block:'start'});detailHeading.current?.focus?.({preventScroll:true});
+  },[detail]);
+  const closeDetail=(restoreFocus=false)=>{selection.current++;selected.current=null;detailFocus.current=null;setDetail(null);setArmed(null);setDraft('');attempt.current=null;const origin=returnFocus.current;returnFocus.current=null;if(restoreFocus&&origin){const target=origin.element&&origin.element.isConnected!==false?origin.element:jobTriggers.current.get(origin.id);target?.focus?.();}};
+  const navigate=value=>{if(value!==tab){closeDetail();setTab(value);setOffset(0);setMessage('');}};
+  const filter=(setter,value)=>{closeDetail();setter(value);setOffset(0);};
+  const changePage=value=>{closeDetail();setOffset(value);};
+  const openJob=async(id,trigger)=>{const token=++selection.current;selected.current=id;detailFocus.current={id,token};returnFocus.current={id,element:trigger??jobTriggers.current.get(id)};setDetail(null);setArmed(null);setDraft('');setMessage('');attempt.current=null;await readDetail(id,token);};
+  const showEvent=event=>{closeDetail();setDetail({kind:'event',value:event});};
+  const act=async(tool,args)=>{
+   if(actionPending.current)return;const actionSelection=selection.current;actionPending.current=true;setBusy(true);setMessage('');
+   try{
+    const value=await call(tool,args);if(!alive.current)return;
+    if(tool.startsWith('manager_setup_connect_')){setSetup(previous=>({...previous,mode:previous?.mode??'managed',connection_setup:value}));success('connect');return;}
+    if(tool.startsWith('manager_setup_')){setSetup(value);success('setup');return;}
+    if(value?.job&&selection.current===actionSelection&&selected.current===args.job_id){selected.current=value.job.job_id;selection.current++;setDetail({kind:'job',value:value.job,cached:value.cached===true});if(value.cached)saveError('detail',{code:'dot-management/unavailable'});else success('detail');}
+    if(tool==='manager_followup'&&selected.current===value?.job?.job_id){setDraft('');attempt.current=null;}
+    if(tool==='manager_set_paused')setOverview(previous=>previous?{...previous,admission:{...previous.admission,paused:args.paused}}:previous);
+    setMessage(tool==='manager_archive'?(args.archived?'任务已归档，仍可在已归档记录中找回。':'任务已取消归档。'):tool==='manager_followup'?'补充要求已提交；等待任务状态确认。':'操作已提交。');
+   }catch(failure){if(alive.current){setMessage(`操作未确认成功，请先刷新核对再重试。诊断代码：${diagnosticCode(failure)}`);if(args.job_id&&selection.current===actionSelection)setDetail(previous=>previous?{...previous,cached:true}:previous);}}
+   finally{actionPending.current=false;if(alive.current){setBusy(false);if(!tool.startsWith('manager_setup_')){if(refreshing.current)rerun.current=true;else void refreshRef.current();}}}
+  };
+  const followup=job=>{
+   const task=draft.trim(),mode=terminal(job)?'after_complete':followMode;if(!task)return;
+   const signature=JSON.stringify([job.job_id,task,mode]);
+   if(attempt.current?.signature!==signature)attempt.current={signature,id:globalThis.crypto?.randomUUID?.()??`ui_${Date.now()}_${Math.random().toString(36).slice(2)}`};
+   void act('manager_followup',{job_id:job.job_id,task,mode,request_id:attempt.current.id});
+  };
+  const openNative=async job=>{try{await adapter.openSession(job);}catch(failure){setMessage(`暂时无法打开 Harness 会话。诊断代码：${diagnosticCode(failure)}`);}};
+  const copyExample=async()=>{try{await globalThis.navigator.clipboard.writeText(example);setMessage('示例已复制，可粘贴给 Dot。');}catch{setMessage('请选中下方示例文字复制给 Dot。');}};
+  const feature=name=>overview?.management_protocol?.features?.[name]===true;
+  const serviceState=value=>({running:'已启动',stopped:'已停止',external:'外部管理',unknown:'运行状态待核实'})[value]??'运行状态待核实';
+  const connection=overview?.connection??{},paused=overview?.admission?.paused===true,nativeTasks=overview?.scope?.task==='native_workspace';
+  const connectionText=errors.overview?'本机状态待核实':['local_ready','connected'].includes(connection.state)?'本机已就绪':connection.state==='partial'?'本机部分能力不可用':connection.state==='offline'?'本机服务离线':'等待本机准备';
+  const cloudAge=clock-Date.parse(connection.cloud_checked_at),cloudFresh=Number.isFinite(cloudAge)&&cloudAge>=-5000&&cloudAge<=35000;
+  const cloudLegacy=overview&&(connection.cloud_state===undefined||connection.cloud_state==='not_verified');
+  const cloudText=errors.overview||!overview?'云端状态待核实':cloudLegacy?'当前服务未提供云端实时状态':connection.cloud_state==='not_configured'?'云端状态待核实 · 尚未关联隧道状态':cloudFresh&&connection.cloud_source==='official_tunnel_health'?(connection.cloud_state==='unknown'&&connection.cloud_reason==='awaiting_first_call'?'通道已启动 · 等待首次调用':({online:'云端通道在线',offline:'云端通道离线'})[connection.cloud_state]??'云端状态待核实'):'云端状态待核实';
+  const cloudHistory=[time(connection.cloud_last_connected_at)!=='—'?`最近连通：${time(connection.cloud_last_connected_at)}`:'',time(connection.cloud_last_interaction_at)!=='—'?`最近云端交互：${time(connection.cloud_last_interaction_at)}`:''].filter(Boolean).join(' · ');
+  const page=pages[pageKey],pageError=errors[pageKey];
+  const stamp=(key,label)=>h('p',{className:'dm-note'},`${label} · 最近成功更新：${time(updated[key])}${errors[key]?' · 当前显示上次保存的数据':''}`);
+  const failureNotice=(key,label)=>errors[key]&&h('div',{className:'dm-notice',role:'alert'},`${label}${errors[key]==='dot-management/busy'?'暂时繁忙':'暂时无法读取'}${updated[key]?'，保留上次成功数据':''}。请重试刷新。`,h('details',null,h('summary',null,'查看诊断信息'),h('code',null,'诊断代码：',errors[key])));
+  const onboarding=h('section',{className:'dm-start-panel'},h('div',{className:'dm-kicker'},'从一句任务开始'),h('h2',null,'在 Dot 里，像这样说。'),h('p',null,'说清项目与目标，Harness 沿用自己的模型和工具执行。你可以在这里跟进进度、补充要求、核对结果。'),h('h3',{className:'dm-section-label'},'可复制给 Dot'),h('pre',{className:'dm-pre',tabIndex:0},example),h('button',{className:'dm-button dm-primary',onClick:copyExample},'复制任务示例'),h('p',{className:'dm-start-panel-footer'},'这是发给 Dot 的任务示例；不会在此页面直接提交。'));
+  const connectionSetup=setup?.connection_setup,external=setup?.mode==='external'||connectionSetup?.phase==='external';
+  const verified=connectionSetup?.phase==='ready'&&['tunnel_online','chatgpt_connected','dot_read','task_complete'].every(key=>connectionSetup.verification?.[key]===true);
+  const restored=verified&&connectionSetup.verification_source==='saved_receipt';
+  const restoring=connectionSetup?.phase==='restoring'&&connectionSetup.verification_source==='saved_receipt';
+  const restorationUnavailable=Boolean(errors.overview||errors.connect||!overview);
+  const restoringMessage=`${restorationUnavailable?'暂时无法核实当前连接状态，请刷新重试。':paused?'接入已暂停。恢复接入后，可继续向 Dot 派任务。':'可以直接向 Dot 派任务，首次调用后会自动更新连接状态。'}上次完整验证：${time(connectionSetup?.last_verified_at)}。`;
+  const verifiedMessage=restored?`连接已恢复。上次完整验证：${time(connectionSetup.last_verified_at)}。`:'连接验证已完成。';
+  const hasWizard=Boolean(connectionSetup)&&!external;
+  if(hasWizard&&connectionHistory.current===null&&overview)connectionHistory.current=Boolean(connection.cloud_last_connected_at||connection.cloud_last_interaction_at||overview.audit?.events_total>0||overview.audit?.jobs_total>0);
+  if(verified)connectionHistory.current=true;
+  const firstConnection=hasWizard&&!verified&&!restoring&&connectionHistory.current!==true;
+  const rechecking=hasWizard&&!verified&&connectionHistory.current===true;
+  const firstConnectionText=['preparing','installing','login','authorize','connecting','verifying','ready'].includes(connectPhase)?'正在连接':'尚未连接';
+  const handoffWaiting=connectionSetup?.error?.code==='ONBOARDING_EGO_HANDOFF';
+  const egoSetupCode=connectionSetup?.error?.code;
+  const egoSetupWaiting=['EGO_BROWSER_UNAVAILABLE','EGO_SETUP_REQUIRED','EGO_INSTALL_DOWNLOAD','EGO_INSTALL_INTEGRITY','EGO_INSTALL_FAILED'].includes(egoSetupCode);
+  const egoSetupLabel=egoSetupCode==='EGO_BROWSER_UNAVAILABLE'?'安装 Ego 并继续':egoSetupCode==='EGO_SETUP_REQUIRED'?'我已完成，继续连接':'重试安装 Ego';
+  const stepIndex=verified?3:handoffWaiting?(connectionSetup.step?.startsWith('dot_')?2:1):['verifying','ready'].includes(connectPhase)?2:['login','authorize','connecting'].includes(connectPhase)?1:0;
+  const connectAction=async operation=>{
+   if(['start','resume'].includes(operation)&&typeof adapter.ensureWorkspace==='function'){
+    if(actionPending.current)return;actionPending.current=true;setBusy(true);setMessage('先确认 Harness 的项目；还没有项目时，请选择一个项目文件夹，随后自动继续连接。');
+    let ready=false;
+    try{ready=await adapter.ensureWorkspace();if(alive.current)setMessage(ready?'':'请先选择一个项目文件夹，再连接 Dot。本次没有开始账号配置。');}
+    catch{if(alive.current)setMessage('暂时无法准备项目。请在 Harness 左侧「工作区」添加一个项目文件夹，再重试连接。');}
+    finally{actionPending.current=false;if(alive.current)setBusy(false);}
+    if(!ready||!alive.current)return;
+   }
+   return act('manager_setup_connect_'+operation,{});
+  };
+  const verificationTask=connectionSetup?.verification_task;
+  const verificationAction=connectionSetup?.waiting_for==='harness_approval'?'打开验证任务，处理审批':connectionSetup?.waiting_for==='harness_answer'?'打开验证任务，回答问题':'打开验证任务';
+  const wizard=hasWizard&&h('section',{className:'dm-wizard','aria-label':'首次连接向导'},
+   h('div',{className:'dm-wizard-top'},h('div',null,h('div',{className:'dm-kicker'},restoring?'等待首次使用':restored?'已恢复连接':verified?'连接已验证':rechecking?'重新验证连接':'首次连接'),h('h2',null,restoring?(restorationUnavailable?'正在核实连接状态。':paused?'接入已暂停。':'连接已启动，可以向 Dot 派任务。'):restored?'连接已恢复':verified?'连接验证已完成':rechecking?'正在检查已有连接。':'连接一次，之后直接派任务。'),h('p',{className:'dm-wizard-intro'},restoring?restoringMessage:restored?`${verifiedMessage} 本次只恢复通道，没有重复派发验证任务。`:verified?'Dot 的实际读取和 Harness 验证任务已经通过。日常使用时，请保持 Harness 与本机连接运行。':rechecking?'复用已建立的专属连接，重新核对 Dot 读取与 Harness 任务。需要确认时，连接窗口会提示你。':'插件会准备本机服务并配置专属连接。需要登录或确认授权时，会在官方页面等你完成。'))),
+   !restoring&&h('ol',{className:'dm-steps','aria-label':'连接步骤'},[['本机准备','检查环境，准备连接服务'],['登录与授权','在官方页面完成账号确认'],['验证连接','实际读取并完成验证任务']].map(([label,note],index)=>h('li',{className:'dm-step',key:label,'data-current':index===stepIndex,'data-complete':index<stepIndex,'aria-current':index===stepIndex?'step':undefined},h('span',{className:'dm-step-index','aria-hidden':true},index<stepIndex?'✓':String(index+1)),h('div',null,h('strong',null,label),h('small',null,note))))),
+   h('div',{className:'dm-wizard-progress',role:'status','aria-live':'polite'},h('span',{className:'dm-progress-mark','aria-hidden':true},h('span',{className:'dm-dot'})),h('div',null,h('p',null,connectionSetup.message||(verified?'连接验证已完成。':'准备好后，点击下方按钮开始。')),connectionSetup.waiting_for&&h('span',{className:'dm-wizard-wait'},egoSetupWaiting?'完成 Ego 首次设置后，回到这里继续连接。':handoffWaiting?'完成 Ego 页面的提示后，回到这里继续连接。':'需要你完成当前页面提示；其他步骤会自动继续。'))),
+   connectionSetup.error&&!handoffWaiting&&egoSetupCode!=='EGO_SETUP_REQUIRED'&&h('div',{className:'dm-notice',role:'alert'},connectionSetup.error.message||'此步骤尚未完成，请重试。',h('details',null,h('summary',null,'查看诊断信息'),h('code',null,connectionSetup.error.code))),failureNotice('connect','连接进度'),
+   verificationTask?.session_id&&h('div',{className:'dm-actions'},h('button',{className:'dm-button dm-primary',disabled:busy||adapter.canOpenSession?.()===false||typeof adapter.openSession!=='function',onClick:()=>openNative(verificationTask)},verificationAction)),
+   ['verifying','ready','restoring'].includes(connectPhase)&&h('ul',{className:'dm-verification'},[['tunnel_online','云端通道'],['chatgpt_connected','个人私有连接'],['dot_read','Dot 实际读取'],['task_complete','Harness 验证任务']].map(([key,label])=>h('li',{key,'data-complete':connectionSetup.verification?.[key]===true},h('span',null,label),h('b',null,connectionSetup.verification?.[key]===true?((restored||restoring)&&key!=='tunnel_online'?'上次已确认':'已确认'):'待验证')))),
+   h('div',{className:'dm-actions'},connectionSetup.actions?.start&&supports('manager_setup_connect_start')&&h('button',{className:'dm-button dm-primary',disabled:busy,onClick:()=>connectAction('start')},'连接我的 Dot'),connectionSetup.actions?.open&&supports('manager_setup_connect_open')&&h('button',{className:handoffWaiting?'dm-button':'dm-button dm-primary',disabled:busy,onClick:()=>connectAction('open')},'打开连接窗口'),connectionSetup.actions?.resume&&supports('manager_setup_connect_resume')&&h('button',{className:(handoffWaiting||egoSetupWaiting)?'dm-button dm-primary':'dm-button',disabled:busy,onClick:()=>connectAction('resume')},egoSetupWaiting?egoSetupLabel:(verified||restoring)?'重新验证连接':handoffWaiting?'继续连接':['blocked','cancelled'].includes(connectPhase)?'重试连接':'继续连接'),connectionSetup.actions?.cancel&&supports('manager_setup_connect_cancel')&&h('button',{className:'dm-button dm-quiet',disabled:busy,onClick:()=>connectAction('cancel')},restoring?'暂停连接':'取消本次连接')),firstConnection&&h('p',{className:'dm-native-note',id:'dm-first-connection-access'},'首次连接完成后，可在这里暂停新的读取与任务请求。'));
+  const externalNotice=external&&h('p',{className:'dm-notice'},connectionSetup?.message||'保留已有连接。当前部署由外部服务管理，这里不会重新创建或接管。');
+  const pagination=page&&h('div',{className:'dm-page'},h('span',null,`共 ${page.total??0} 条`,page.total?` · 当前 ${offset+1}–${offset+(page.items?.length??0)}`:''),h('button',{className:'dm-button',disabled:loading||offset===0,onClick:()=>changePage(Math.max(0,offset-20))},'上一页'),h('button',{className:'dm-button',disabled:loading||page.next_offset==null,onClick:()=>changePage(page.next_offset)},'下一页'));
+  const eventsTable=items=>items?.length?h('div',{className:'dm-table-wrap'},h('table',{className:'dm-table'},h('thead',null,h('tr',null,['时间','操作','对象','结果'].map(text=>h('th',{key:text,scope:'col'},text)))),h('tbody',null,items.map(event=>h('tr',{key:event.id},h('td',{className:'dm-time'},time(event.created_at)),h('td',null,h('button',{className:'dm-link',onClick:()=>showEvent(event)},tools[event.tool]??event.tool)),h('td',{className:'dm-object',title:objectOf(event)},objectOf(event)),h('td',null,badge(event.outcome))))))):empty('还没有访问记录','接入后发生的读取和任务调用会显示在这里。');
+  const jobsTable=items=>{
+   const filtered=(items??[]).filter(job=>[job.task,titleOf(job),projectOf(job),job.job_id,job.request_id].some(value=>String(value??'').toLocaleLowerCase().includes(search.trim().toLocaleLowerCase())));
+   return filtered.length?h('div',{className:'dm-table-wrap'},h('table',{className:'dm-table'},h('thead',null,h('tr',null,['任务','项目','状态','最近活动'].map(text=>h('th',{key:text,scope:'col'},text)))),h('tbody',null,filtered.map(job=>h('tr',{key:job.job_id},h('td',{className:'dm-object'},h('button',{className:'dm-link',disabled:busy,ref:element=>{if(element)jobTriggers.current.set(job.job_id,element);else jobTriggers.current.delete(job.job_id);},onClick:event=>openJob(job.job_id,event?.currentTarget)},job.task?.slice(0,100)||titleOf(job)),job.session_name&&h('div',{className:'dm-muted'},job.session_name)),h('td',null,projectOf(job)),h('td',null,jobState(job)),h('td',{className:'dm-time'},time(job.last_activity_at??job.updated_at??job.created_at))))))):empty(search?'当前页没有匹配任务':archive==='archived'?'没有已归档任务':'这里还没有任务',search?'换个关键词或翻页查找。':'从 Dot 提交任务后，可在这里跟进进度与结果。');
+  };
+  const recent=overview?.recent_events??[];
+  const showRecentJob=(job,trigger)=>{navigate('jobs');void openJob(job.job_id,trigger);};
+  const overviewBody=h(React.Fragment,null,
+   h('section',{className:'dm-hero'},h('div',null,h('h2',null,'把任务交给 Harness。'),h('p',null,'在 Dot 说清要做什么，Harness 在你的项目里执行。进展、待处理的问题和结果，都在这里。')),h('div',{className:'dm-date'},'你的任务调度工作区',h('br'),new Date(clock).toLocaleDateString('zh-CN',{month:'long',day:'numeric',weekday:'long'}))),
+   !verified&&!restoring&&wizard,restoring&&h('p',{className:'dm-native-note',role:'status'},restoringMessage),restoring&&failureNotice('connect','连接进度'),verified&&h('p',{className:'dm-native-note',role:'status'},`${verifiedMessage} 最近的任务与结果会显示在下方。`),external&&h('p',{className:'dm-native-note'},'已有连接已保留，可以直接从 Dot 派任务。'),
+   h('div',{className:'dm-workspace'},h('div',null,
+    h('section',null,h('div',{className:'dm-section-head'},h('h2',null,'最近任务',h('span',{className:'dm-count'},overview?.audit?.jobs_total??0)),h('button',{className:'dm-link',onClick:()=>navigate('jobs')},'查看任务与待处理事项')),
+     overview&&h('div',{className:'dm-work-status'},firstConnection?h('span',null,'连接后，新的读取和任务请求会在这里管理。'):h(React.Fragment,null,h('span',null,'新请求',h('strong',null,paused?'已暂停':'已开放')),h('span',null,'本机执行器',h('strong',null,connection.worker_backend==='online'?'已响应':'等待响应')))),
+     failureNotice('recentJobs','最近任务'),recentJobs.length?h('ul',{className:'dm-job-list'},recentJobs.map(job=>h('li',{key:job.job_id},h('div',null,h('button',{className:'dm-link dm-job-title',disabled:busy,onClick:event=>showRecentJob(job,event?.currentTarget)},titleOf(job)),h('div',{className:'dm-job-meta'},projectOf(job),' · ',time(job.last_activity_at??job.updated_at??job.created_at))),h('div',{className:'dm-job-state','data-state':job.status},jobState(job))))):empty('这里会留下每一项任务的进展',restoring?'成功派发的任务会在这里显示。':hasWizard&&!verified?'完成首次连接后，从 Dot 开始第一项任务。':'从 Dot 派一项任务，再回到这里查看要求、进度和结果。')),
+    h('section',{className:'dm-section'},h('div',{className:'dm-section-head'},h('h2',null,'最近活动'),h('button',{className:'dm-link',onClick:()=>navigate('events')},'查看访问记录')),recent.length?h('ul',{className:'dm-recent'},recent.slice(0,4).map(event=>h('li',{key:event.id},h('div',null,h('button',{className:'dm-link',onClick:()=>showEvent(event)},tools[event.tool]??event.tool),h('div',null,h('small',null,objectOf(event)))),h('div',null,badge(event.outcome),h('div',null,h('small',null,time(event.created_at))))))):empty('暂无访问记录','连接后的项目读取和任务调用，会按时间记录。')),
+    overview&&stamp('overview','本机总览')),
+    h('aside',null,onboarding)));
+  const setupBody=h(React.Fragment,null,h('h2',{className:'dm-settings-title'},'连接设置'),h('p',{className:'dm-muted'},'管理自己的 Dot 连接，以及 Harness 的本机执行入口。'),h('div',{className:'dm-section'},wizard),
+   !setup&&h('p',{className:'dm-note'},'正在读取本机准备状态；请确认插件已启用。'),
+   h('details',{className:'dm-diagnostics'},h('summary',null,'本机服务与连接诊断'),externalNotice,h('p',{className:'dm-muted'},cloudText),h('p',{className:'dm-note'},'通道状态不代表账号授权或任务执行成功。'),failureNotice('setup','本机设置'),failureNotice('overview','本机连接状态'),
+    setup&&h(React.Fragment,null,h('h2',null,'本机服务'),h('dl',{className:'dm-facts'},...info('本机准备',({setup_required:'尚未准备',prepared:'已准备，待启动',running:'本机服务已启动',stopped:'本机服务已停止',blocked:'需要处理检查项',external:'使用已有外部管理服务'})[setup.phase]??'待核实'),...info('读取服务',serviceState(setup.services?.reader)),...info('管理服务',serviceState(setup.services?.manager))),
+     h('ul',null,(setup.checks??[]).map(check=>h('li',{key:check.id},`${check.ok?'已通过':'需要处理'}：${check.message}`))),setup.error&&h('p',{className:'dm-notice',role:'alert'},`${setup.error.message||'本机准备未完成。'} 诊断代码：${setup.error.code}`),
+     h('div',{className:'dm-actions'},setup.actions?.prepare&&h('button',{className:'dm-button',disabled:busy,onClick:()=>void act('manager_setup_prepare',{})},'准备本机连接'),setup.actions?.start&&h('button',{className:'dm-button',disabled:busy,onClick:()=>void act('manager_setup_start',{})},'启动本机服务'),setup.actions?.stop&&h('button',{className:'dm-button',disabled:busy,onClick:()=>{if(armed==='stop'){setArmed(null);void act('manager_setup_stop',{});}else setArmed('stop');}},armed==='stop'?'确认停止本机服务':'停止本机服务')),
+     !connectionSetup&&h(React.Fragment,null,h('ol',null,(setup.handoff?.steps??[]).map((step,index)=>h('li',{key:index},step))),setup.handoff?.command&&h('pre',{className:'dm-pre',tabIndex:0},setup.handoff.command))),
+    h('h2',null,'连接诊断'),h('dl',{className:'dm-facts'},...info('Harness 读取',connection.read_backend==='online'?'在线':'待核实'),...info('任务入口',connection.task_backend==='online'?'在线':'待核实'),...info('执行器最近响应',time(connection.last_worker_seen_at)),...info('最近检查',time(connection.checked_at)),...info('云端最近检查',time(connection.cloud_checked_at)),...info('最近连通',time(connection.cloud_last_connected_at)),...info('最近云端交互',time(connection.cloud_last_interaction_at)),...info('已记录调用',overview?.audit?.events_total??0)),h('p',{className:'dm-note'},'暂停接入停止新的读取与任务请求，已有任务继续运行。取消任务请在任务详情单独操作。')),
+   h('section',{className:'dm-scope'},h('h2',null,'访问与执行范围'),h('p',null,'按需读取项目、已保存会话、项目文件、记忆、技能和说明。任务沿用 Harness 的模型、工具与审批，仅控制本连接创建的会话。'),h('p',{className:'dm-note'},`调用记录最多保留 ${overview?.audit?.retention_limit??500} 条。归档保留任务编号和结果，不删除原生会话。审批与问题回答请在 Harness 原生会话中处理。`)));
+  let detailBody=null;
+  if(detail?.kind==='event'){
+   const event=detail.value;
+   detailBody=h('section',{className:'dm-detail','aria-label':'记录详情'},h('div',{className:'dm-detail-head'},h('h2',null,'记录详情'),h('button',{className:'dm-button',onClick:()=>closeDetail(true)},'关闭详情')),h('dl',{className:'dm-facts'},...info('操作',tools[event.tool]??event.tool),...info('结果',status(event.outcome)),...info('开始时间',time(event.created_at)),...info('完成时间',time(event.finished_at)),...info('记录编号',event.id),...Object.entries(event.selectors??{}).flatMap(([key,value])=>info(key,Array.isArray(value)?value.join('、'):value)),...(event.error_code?info('错误代码',event.error_code):[])),h('p',{className:'dm-note'},'记录只保存调用元数据，不保存本次读取的会话正文或文件内容。'));
+  }else if(detail?.kind==='job'&&detail.value){
+   const job=detail.value,canCancel=['accepted','starting','running','cancel_requested'].includes(job.status),canManageNative=job.execution_kind==='native'||(nativeTasks&&!job.project_id),canFollow=canManageNative&&(terminal(job)||(job.status==='running'&&(!job.stage||job.stage==='running'))),canOpen=typeof adapter.openSession==='function'&&(adapter.canOpenSession?.()??true),disabled=busy||detail.cached;
+   detailBody=h('section',{className:'dm-detail','aria-label':'任务详情'},h('div',{className:'dm-detail-head'},h('h2',{ref:detailHeading,tabIndex:-1},'任务详情'),h('button',{className:'dm-button',onClick:()=>closeDetail(true)},'关闭详情')),h('h3',null,titleOf(job)),detail.cached&&h('p',{className:'dm-notice',role:'status'},'这是上次保存的任务状态，当前未能刷新。刷新成功后才可修改或取消任务。'),failureNotice('detail','任务详情'),stamp('detail','所选任务'),
+    h('dl',{className:'dm-facts'},...info('状态',jobState(job)),...info('项目',projectOf(job)),...info('会话',job.session_name||job.session_id),...info('等待审批',job.pending_approvals??0),...info('等待回答',job.user_question_count??0),...info('最近活动',time(job.last_activity_at??job.updated_at??job.created_at)),...info('创建时间',time(job.created_at)),...info('完成时间',time(job.finished_at))),
+    (job.pending_approvals>0||job.user_question_count>0)&&h('p',{className:'dm-notice'},'需要你处理：打开 Harness 会话查看审批并回答问题。'),
+    (job.questions??[]).filter(q=>q.state==='open').map(q=>h('section',{key:`${q.call_id??''}:${q.id}`},h('h3',null,q.header||'待回答的问题'),h('p',null,q.question),q.detail&&h('p',{className:'dm-muted'},q.detail),h('ul',null,(q.options??[]).map((option,index)=>h('li',{key:index},option.label,option.description?`：${option.description}`:''))))),job.questions_truncated&&h('p',{className:'dm-note'},'这里仅显示部分问题；完整内容请打开 Harness 会话。'),
+    h('div',{className:'dm-actions'},h('button',{className:'dm-button',disabled:!canOpen||!job.session_id,onClick:()=>void openNative(job)},'打开 Harness 会话'),!canOpen&&h('span',{className:'dm-note'},'原生导航尚未就绪。')),
+    job.task&&h(React.Fragment,null,h('h3',null,'任务要求'),h('pre',{className:'dm-pre'},job.task)),h('h3',null,'返回结果'),h('pre',{className:'dm-pre'},job.result||'暂无已确认完成的结果。'),job.result_truncated&&h('p',{className:'dm-note'},'结果超过上限，当前显示截取内容。'),job.reason&&h('p',{className:'dm-note'},`终止原因：${job.reason}`),
+    h('details',null,h('summary',null,'任务标识与验收'),h('dl',{className:'dm-facts'},...info('任务编号',job.job_id),...info('请求编号',job.request_id),...info('独立会话',job.session_id),...info('验收',job.acceptance==='unverified'?'尚未由用户验收':job.acceptance))),
+    canFollow&&feature('followup')&&supports('manager_followup')&&h('section',{className:'dm-section'},h('h3',null,terminal(job)?'继续这项任务':'补充要求'),h('textarea',{className:'dm-input dm-textarea','aria-label':'补充要求',value:draft,maxLength:8000,disabled:disabled||job.archived,onChange:e=>setDraft(e.target.value),placeholder:'写下下一步要完成的事情'}),!terminal(job)&&select('发送方式',followMode,setFollowMode,[['queue','本轮完成后继续'],['steer','立即补充到当前运行']]),h('p',{className:'dm-note'},job.archived?'先取消归档，再继续任务。':'沿用当前会话与 Harness 审批；发送后会生成可追踪的新任务记录。'),h('button',{className:'dm-button',disabled:disabled||job.archived||!draft.trim(),onClick:()=>followup(job)},terminal(job)?'继续任务':'发送补充要求')),
+    h('div',{className:'dm-detail-actions'},canCancel&&h('button',{className:'dm-button',disabled:disabled||job.status==='cancel_requested',onClick:()=>{if(armed===job.job_id){setArmed(null);void act('manager_cancel',{job_id:job.job_id});}else setArmed(job.job_id);}},job.status==='cancel_requested'?'已请求取消':armed===job.job_id?'确认取消这项任务':'取消任务'),canManageNative&&terminal(job)&&feature('archive')&&supports('manager_archive')&&h('button',{className:'dm-button',disabled,onClick:()=>void act('manager_archive',{job_id:job.job_id,archived:!job.archived})},job.archived?'取消归档':'归档任务')));
+  }
+  return h('main',{className:'dsh-dot-management','data-connected':!firstConnection},h('style',null,css),h('div',{className:'dm-wrap'},
+   h('header',{className:'dm-header'},h('div',null,h('div',{className:'dm-brand'},h('span',{className:'dm-brand-mark','aria-hidden':true},h('svg',{width:20,height:20,viewBox:'0 0 24 24',fill:'none'},h('rect',{x:3,y:5,width:7,height:14,rx:2,stroke:'currentColor',strokeWidth:1.5}),h('path',{d:'M14 8h7m-3-3 3 3-3 3M21 16h-7m3-3-3 3 3 3',stroke:'currentColor',strokeWidth:1.5,strokeLinecap:'round',strokeLinejoin:'round'}))),h('div',null,h('div',{className:'dm-kicker'},'DeepSeek Harness'),h('h1',null,'Dot 连接'))),h('div',{className:'dm-header-status'},firstConnection?h('p',{className:'dm-pill',role:'status','aria-describedby':['overview','settings'].includes(tab)?'dm-first-connection-access':undefined},h('span',{className:'dm-dot','aria-hidden':true}),firstConnectionText):h(React.Fragment,null,h('p',null,connectionText),h('p',{className:'dm-pill','data-state':cloudText==='云端通道在线'?'online':'unknown',role:'status'},h('span',{className:'dm-dot','aria-hidden':true}),cloudText))),!firstConnection&&cloudHistory&&h('details',{className:'dm-header-history'},h('summary',null,'最近连通与交互'),h('p',null,cloudHistory))),h('div',{className:'dm-actions'},h('button',{className:'dm-button dm-quiet',disabled:loading||busy,onClick:()=>void refresh()},loading?'刷新中…':'刷新'),overview&&!firstConnection&&h('button',{className:'dm-button dm-quiet',disabled:busy||Boolean(errors.overview),onClick:()=>void act('manager_set_paused',{paused:!paused})},paused?'恢复接入':'暂停接入'))),
+   h('nav',{className:'dm-tabs',role:'tablist','aria-label':'连接管理'},[['overview','总览'],['jobs','任务'],['events','访问记录'],['settings','连接设置']].map(([id,label],index,items)=>h('button',{key:id,className:'dm-tab',role:'tab',tabIndex:tab===id?0:-1,'aria-selected':tab===id,'aria-controls':`dm-${id}`,onClick:()=>navigate(id),onKeyDown:event=>{let next;if(event.key==='ArrowRight')next=(index+1)%items.length;else if(event.key==='ArrowLeft')next=(index+items.length-1)%items.length;else if(event.key==='Home')next=0;else if(event.key==='End')next=items.length-1;else return;event.preventDefault();event.currentTarget.parentElement.querySelectorAll('[role="tab"]')[next]?.focus();navigate(items[next][0]);}},label))),
+   h('div',{className:'dm-body',role:'tabpanel',id:`dm-${tab}`},(!hasWizard||verified||restoring)&&failureNotice('overview','本机连接状态'),message&&h('p',{className:'dm-notice',role:'status'},message),overview?.management_protocol?.version===1&&h('p',{className:'dm-notice',role:'status'},'兼容模式：已有管理服务支持查看、状态筛选和取消。项目与请求筛选、归档及继续任务需要升级管理服务后启用。'),
+    tab==='overview'?overviewBody:tab==='settings'?setupBody:tab==='events'?h(React.Fragment,null,h('div',{className:'dm-filters'},select('类型',category,value=>filter(setCategory,value),[['','全部类型'],['read','读取'],['task','任务'],['control','接入控制']]),select('结果',outcome,value=>filter(setOutcome,value),[['','全部结果'],['pending','处理中'],['succeeded','成功'],['failed','失败'],['unknown','待核实'],['denied','已拒绝']])),failureNotice(pageKey,'访问记录'),stamp(pageKey,'访问记录'),page&&eventsTable(page.items),pagination):h(React.Fragment,null,
+     h('div',{className:'dm-filters'},select('状态',jobStatus,value=>filter(setJobStatus,value),[['','全部状态'],...Object.entries(labels).filter(([id])=>!['pending','denied'].includes(id))]),feature('task_filters')&&select('项目',workspace,value=>filter(setWorkspace,value),[['','全部项目'],...[...projects.current].filter(([id])=>id)]),feature('task_filters')&&select('记录范围',archive,value=>filter(setArchive,value),[['active','未归档'],['archived','已归档']]),h('label',null,'搜索当前页',h('input',{className:'dm-input','aria-label':'搜索当前页',value:search,onChange:e=>setSearch(e.target.value),placeholder:'任务、项目或编号'})),feature('task_filters')&&h('form',{onSubmit:e=>{e.preventDefault();filter(setRequestId,e.currentTarget.elements.request.value.trim());}},h('label',null,'按请求编号找回',h('input',{className:'dm-input',name:'request','aria-label':'请求编号',maxLength:100,placeholder:'稳定 request ID'})),h('button',{className:'dm-button',type:'submit'},'查找')),feature('task_filters')&&requestId&&h('button',{className:'dm-button',onClick:()=>filter(setRequestId,'')},'清除请求筛选')),
+     failureNotice(pageKey,'任务列表'),stamp(pageKey,'任务列表'),page&&jobsTable(page.items),pagination),
+    loading&&h('div',{className:'dm-loading',role:'status'},'正在更新…'),h('p',{className:'dm-updated'},'页面可见时自动更新，保留当前选择。'),detailBody)));
+ }
+ return Page;
+},function createNativeWorker(options={}){
+ const {remote,overview=()=>remote.dotDshManagement.workerPoll({}),fetchImpl=globalThis.fetch,location=globalThis.location,randomUUID=()=>globalThis.crypto.randomUUID(),now=()=>Date.now(),pollIntervalMs=1000,timeoutMs=30000,setTimeoutImpl=globalThis.setTimeout,clearTimeoutImpl=globalThis.clearTimeout,diagnostic=(stage,code)=>globalThis.console?.warn('Dot native worker',stage,code)}=options;
+ const enabled=location?.protocol==='dsh-app:'&&location?.hostname==='app';
+ const legacyBase='http://127.0.0.1:31474/native/',clientId=enabled?randomUUID():null;
+ const endpoint=value=>typeof value==='string'&&/^http:\/\/127\.0\.0\.1:[1-9][0-9]{0,4}\/native\/$/.test(value)&&Number(new URL(value).port)<=65535?value:null;
+ const controllers=new Set();let closed=false,started=false,busy=false,timer=null,pending=null,stage='native.execute';
+ const diagnosticCodes=new Set(['gateway/invocation-unavailable','gateway/definition-unavailable','gateway/service-unavailable','gateway/method-unavailable','gateway/binding-invalid','gateway/input-invalid','gateway/bad-request','gateway/internal','gateway/cancelled','session/not-found','session/agent-unavailable','session/queue-item-not-found','workspace/not-found']);
+ const stages=new Set(['native.execute','workspace.follow','session.list','session.create','session.follow','session.page','session.prompt','session.updateQueue','session.cancel']);
+ const at=(label,callback)=>{stage=stages.has(label)?label:'native.execute';return callback();};
+ const fault=code=>Object.assign(new Error(code),{safeCode:code});
+ const plain=value=>value!==null&&typeof value==='object'&&!Array.isArray(value);
+ const text=value=>typeof value==='string'&&value.length>0&&value.length<=200;
+ const path=value=>typeof value==='string'&&value.startsWith('/')&&!value.includes('\0')&&!value.split('/').some(p=>p==='.'||p==='..')?value.replace(/\/+$/,'')||'/':null;
+ const unwrap=result=>{if(!plain(result)||result.ok!==true)throw Object.assign(fault('NATIVE_FAILED'),{nativeCode:diagnosticCodes.has(result?.error?.code)?result.error.code:'native/failed'});return result.value;};
+ const nativeCall=async(callback,code='NATIVE_TIMEOUT')=>{
+  if(closed)throw fault('NATIVE_UNAVAILABLE');
+  const controller=new AbortController();controllers.add(controller);let handle;
+  try{return await Promise.race([Promise.resolve().then(()=>callback(controller.signal)),new Promise((_,reject)=>{handle=setTimeoutImpl(()=>{controller.abort();reject(fault(code));},timeoutMs);})]);}
+  finally{clearTimeoutImpl(handle);controller.abort();controllers.delete(controller);}
+ };
+ const firstFrame=async(open,type)=>nativeCall(async signal=>{
+  const iterator=open(signal)[Symbol.asyncIterator]();
+  try{const next=await iterator.next();if(next.done||next.value?.type!==type)throw fault('HISTORY_UNAVAILABLE');return next.value;}
+  finally{signal.throwIfAborted?.();Promise.resolve(iterator.return?.()).catch(()=>{});}
+ });
+ const workspace=async id=>{
+  const frame=await at('workspace.follow',()=>firstFrame(signal=>remote.workspace.follow(signal),'baseline'));
+  const matches=frame.value?.items?.filter(item=>item.workspaceId===id)??[];
+  if(matches.length!==1||!path(matches[0].path))throw fault('WORKSPACE_UNAVAILABLE');return matches[0];
+ };
+ const list=async()=>{const result=unwrap(await at('session.list',()=>nativeCall(signal=>remote.session.list({},signal))));if(!Array.isArray(result?.items))throw fault('NATIVE_FAILED');return result.items;};
+ const history=async command=>{
+  const opening=await at('session.follow',()=>firstFrame(signal=>remote.session.follow({address:{kind:'session',sessionId:command.session_id},maxMessages:256,turnWindow:{minMessages:32,minTurns:8}},signal),'snapshot'));
+  if(opening.header?.id!==command.session_id)throw fault('IDENTITY_MISMATCH');
+  let records=Array.isArray(opening.records)?opening.records:[],hasMore=opening.hasMore===true;
+  const anchorId=command.action==='prompt'&&command.parent_request_id?command.parent_request_id:command.request_id;
+  const requestAnchor=()=>{let turn=null,found=false;for(const record of [...records].sort((a,b)=>(a.event?.seq??-1)-(b.event?.seq??-1))){if(record.type!=='event')continue;const e=record.event;if((e?.type==='turn/start'||e?.type==='step/start')&&Number.isSafeInteger(e.data?.turn)&&e.data.turn>=0)turn=e.data.turn;if(e?.type==='user/message'&&e.data?.source?.rpcId===anchorId){found=true;if(turn!==null)return'anchored';}}return found?'unanchored':'absent';};
+  // Page only when the bounded opening omitted the requested turn. Retain the inclusive opening cursor.
+  for(let page=0;hasMore&&page<8&&requestAnchor()!=='anchored';page++){
+   const seqs=records.filter(r=>r.type==='event').map(r=>r.event?.seq).filter(Number.isSafeInteger);
+   if(!seqs.length||!Number.isSafeInteger(opening.cursor))throw fault('HISTORY_UNAVAILABLE');
+   const result=unwrap(await at('session.page',()=>nativeCall(signal=>remote.session.page({address:{kind:'session',sessionId:command.session_id},throughSeq:opening.cursor,beforeSeq:Math.min(...seqs),maxMessages:256,turnWindow:{minMessages:32,minTurns:8}},signal))));
+   if(!Array.isArray(result?.records)||!result.records.length)break;
+   records=[...result.records,...records];hasMore=result.hasMore===true;
+   if(records.length>10000)throw fault('HISTORY_UNAVAILABLE');
+  }
+  if(requestAnchor()==='unanchored')throw fault('HISTORY_UNAVAILABLE');
+  return{...opening,records};
+ };
+ const clip=(value,max)=>typeof value==='string'?value.slice(0,max):null;
+ const questionsOf=active=>{
+  const questions=[];let truncated=false,budget=8192;
+  const take=(value,max)=>{const result=clip(value,Math.min(max,budget));budget-=result.length;truncated||=result.length<value.length;return result;};
+  for(const batch of Array.isArray(active)?active:[]){
+   if(!text(batch?.callId)||!['open','continued'].includes(batch.state)||!Array.isArray(batch.questions))continue;
+   for(const question of batch.questions){
+    if(!text(question?.id)||typeof question.question!=='string')continue;
+    if(questions.length>=20||budget===0){truncated=true;continue;}
+    const item={call_id:batch.callId,id:question.id,question:take(question.question,2000),state:batch.state};
+    for(const [key,max]of [['header',200],['detail',4000]])if(typeof question[key]==='string'){item[key]=take(question[key],max);truncated||=question[key].length>max;}
+    truncated||=question.question.length>2000;
+    if(typeof question.multiSelect==='boolean')item.multi_select=question.multiSelect;
+    if(Array.isArray(question.options)){truncated||=question.options.length>12;item.options=question.options.slice(0,12).filter(option=>typeof option?.label==='string').map(option=>{truncated||=option.label.length>300||(typeof option.description==='string'&&option.description.length>1000);return{label:take(option.label,300),...typeof option.description==='string'?{description:take(option.description,1000)}:{}};});}
+    questions.push(item);
+   }
+  }
+  return{questions,questions_truncated:truncated};
+ };
+ const metadata=(registered,item,snapshot)=>{const name=snapshot.projections?.values?.title??item.projections?.values?.title;return{...typeof registered.title==='string'?{workspace_name:clip(registered.title,500)}:{},...typeof name==='string'?{session_name:clip(name,500)}:{},...Number.isFinite(item.updatedAt)&&Math.abs(item.updatedAt)<=8640000000000000?{last_activity_at:new Date(item.updatedAt).toISOString()}:{}};};
+ const normalize=snapshot=>{
+  const raw=snapshot.records.filter(r=>r.type==='event'&&plain(r.event)&&Number.isSafeInteger(r.event.seq)&&r.event.seq>=0).map(r=>r.event).sort((a,b)=>a.seq-b.seq);
+  const events=[],approvals=new Set();let currentTurn=null,activeTurn=null,activeRequest=null;
+  for(const e of raw){const d=e.data;
+   if(!plain(d))continue;
+   if((e.type==='turn/start'||e.type==='step/start')&&Number.isSafeInteger(d.turn)&&d.turn>=0){currentTurn=d.turn;if(e.type==='turn/start'){activeTurn=d.turn;activeRequest=null;events.push({type:'turn/start',seq:e.seq,turn:d.turn});}}
+   if(e.type==='user/message'&&currentTurn!==null&&text(d.id)&&plain(d.source)){
+    const item={type:'user/message',seq:e.seq,turn:currentTurn,message_id:d.id,source_kind:typeof d.source.kind==='string'?d.source.kind:'unknown'};
+    if(text(d.source.rpcId))item.source_rpc_id=d.source.rpcId;
+    events.push(item);if(d.source.kind==='user'&&activeTurn===currentTurn)activeRequest=d.source.rpcId??null;
+   }
+   if(e.type==='assistant/message'&&Number.isSafeInteger(d.turn)&&d.turn>=0){const content=d.message?.content;const value=Array.isArray(content)?content.filter(b=>b?.type==='text'&&typeof b.text==='string').map(b=>b.text).join('\n'):'';const characters=Array.from(value);events.push({type:'assistant/message',seq:e.seq,turn:d.turn,text:characters.slice(0,16000).join(''),...characters.length>16000?{text_truncated:true}:{},interrupted:d.interrupted===true});}
+   if(e.type==='turn/end'&&Number.isSafeInteger(d.turn)&&d.turn>=0){const reason=typeof d.reason?.kind==='string'?d.reason.kind:'unknown';events.push({type:'turn/end',seq:e.seq,turn:d.turn,reason});if(activeTurn===d.turn){activeTurn=null;activeRequest=null;}}
+   if(e.type==='approval/asked'&&text(d.id))approvals.add(d.id);
+   if(e.type==='approval/decided'&&text(d.id))approvals.delete(d.id);
+  }
+  const values=snapshot.projections?.values??{},inbox=values.inbox??{};
+  return{events,activeTurn,activeRequest,...questionsOf(values.userQuestions?.active),pending_approvals:approvals.size,user_question_count:Array.isArray(values.userQuestions?.active)?values.userQuestions.active.length:0,queued:['next-turn','next-step'].flatMap(key=>Array.isArray(inbox[key])?inbox[key]:[])};
+ };
+ const validate=command=>{
+  const keys=new Set(['command_id','action','job_id','workspace_id','session_id','request_id','task','expected_cwd','mode','parent_request_id','owned_request_ids']);
+  if(!plain(command)||Object.keys(command).some(key=>!keys.has(key))||!['create','prompt','inspect','cancel'].includes(command.action)||!['command_id','job_id','workspace_id','session_id','request_id'].every(key=>text(command[key]))||!/^dsh_dot_[0-9a-f-]{36}$/i.test(command.session_id)||!(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(command.request_id)))throw fault('INVALID_COMMAND');
+  if(command.action==='prompt'&&(typeof command.task!=='string'||!command.task.trim()||Array.from(command.task).length>64000))throw fault('INVALID_COMMAND');
+  if(command.owned_request_ids!==undefined&&(!Array.isArray(command.owned_request_ids)||command.owned_request_ids.length>101||!command.owned_request_ids.every(id=>typeof id==='string'&&/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id))))throw fault('INVALID_COMMAND');
+  if(command.mode!==undefined&&!['after_complete','queue','steer'].includes(command.mode))throw fault('INVALID_COMMAND');
+  if(command.mode==='queue'||command.mode==='steer'){if(command.action==='create'||!(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(command.parent_request_id??''))||command.parent_request_id===command.request_id)throw fault('INVALID_COMMAND');}
+  else if(command.parent_request_id!==undefined)throw fault('INVALID_COMMAND');
+  if(command.expected_cwd!==undefined&&!path(command.expected_cwd))throw fault('INVALID_COMMAND');
+ };
+ const verify=async(command,registered)=>{
+  const items=await list(),item=items.find(item=>item.sessionId===command.session_id);
+  if(!item||item.origin==='subagent')throw fault('IDENTITY_MISMATCH');
+  if(!Array.isArray(registered.sessionIds)||!registered.sessionIds.includes(command.session_id))throw fault('IDENTITY_MISMATCH');
+  const snapshot=await history(command),cwd=path(snapshot.header.cwd),root=path(registered.path);
+  if(!cwd||cwd!==root||(command.expected_cwd!==undefined&&cwd!==path(command.expected_cwd)))throw fault('IDENTITY_MISMATCH');
+  return{snapshot,item,cwd};
+ };
+ const execute=async(command,expiresAt)=>{
+  const deadline=Date.parse(expiresAt);
+  const mutation=(method,args)=>at(`session.${method}`,()=>nativeCall(signal=>{if(closed||!Number.isFinite(deadline)||now()>=deadline)throw fault('NATIVE_TIMEOUT');return method==='prompt'?remote.session.prompt(args,signal):remote.session[method](args);}));
+  try{
+   stage='native.execute';validate(command);if(!Number.isFinite(deadline)||now()>=deadline)throw fault('NATIVE_TIMEOUT');let registered=await workspace(command.workspace_id);
+   if(command.action==='create'){
+    const existing=(await list()).find(item=>item.sessionId===command.session_id);
+    if(!existing){const created=unwrap(await mutation('create',{workspaceId:command.workspace_id,sessionId:command.session_id}));if(created?.sessionId!==command.session_id)throw fault('IDENTITY_MISMATCH');registered=await workspace(command.workspace_id);}
+    const {cwd,item,snapshot}=await verify(command,registered);return{ok:true,session_id:command.session_id,workspace_id:command.workspace_id,cwd,...metadata(registered,item,snapshot)};
+   }
+   let {snapshot,item,cwd}=await verify(command,registered);let state=normalize(snapshot);
+   const identity={ok:true,session_id:command.session_id,workspace_id:command.workspace_id,cwd,...metadata(registered,item,snapshot)};
+   if(command.action==='prompt'){
+    const activeMode=command.mode==='queue'||command.mode==='steer';
+    if(activeMode){const owned=new Set(command.owned_request_ids??[command.parent_request_id,command.request_id]);if(item.running!==true||state.activeTurn===null||state.activeRequest!==command.parent_request_id||state.events.some(event=>event.type==='user/message'&&event.turn===state.activeTurn&&event.source_kind==='user'&&!owned.has(event.source_rpc_id)))throw fault('IDENTITY_MISMATCH');}
+    else if(state.activeTurn!==null&&state.activeRequest!==command.request_id)throw fault('IDENTITY_MISMATCH');
+    // Native requestId deduplicates both pending inbox messages and durable user/message events.
+    const result=unwrap(await mutation('prompt',{sessionId:command.session_id,requestId:command.request_id,mode:command.mode==='steer'?'steer':'queue',content:[{type:'text',text:command.task}]}));
+    if(result?.accepted!==true)throw fault('NATIVE_FAILED');return{...identity,accepted:true,...activeMode?{parent_turn:state.activeTurn}:{}};
+   }
+   let removed;
+   if(command.action==='cancel'){
+    const owned=state.queued.filter(message=>message?.source?.kind==='user'&&message.source.rpcId===command.request_id&&text(message.id));
+    if(!owned.length&&state.activeTurn!==null&&state.activeRequest!==command.request_id)throw fault('IDENTITY_MISMATCH');
+    for(const message of owned){const result=unwrap(await mutation('updateQueue',{sessionId:command.session_id,itemId:message.id,action:{kind:'remove'}}));if(result?.accepted!==true)throw fault('NATIVE_FAILED');}
+    if(owned.length){snapshot=await history(command);state=normalize(snapshot);if(!state.queued.some(message=>message?.source?.rpcId===command.request_id)&&!state.events.some(e=>e.type==='user/message'&&e.source_rpc_id===command.request_id))removed=command.request_id;}
+    if(state.activeTurn!==null&&state.activeRequest===command.request_id){const allowed=new Set(command.owned_request_ids??[command.request_id]);if(state.events.some(event=>event.type==='user/message'&&event.turn===state.activeTurn&&event.source_kind==='user'&&!allowed.has(event.source_rpc_id)))throw fault('IDENTITY_MISMATCH');const result=unwrap(await mutation('cancel',{sessionId:command.session_id}));if(result?.accepted!==true)throw fault('NATIVE_FAILED');}
+   }
+   const parentTurn=command.parent_request_id?state.events.find(e=>e.type==='user/message'&&e.source_rpc_id===command.parent_request_id)?.turn:undefined;
+   const target=state.events.find(e=>e.type==='user/message'&&e.source_rpc_id===command.request_id)?.turn;
+   const events=target===undefined?[]:state.events.filter(e=>e.turn===target);
+   if(events.length>256)throw fault('HISTORY_UNAVAILABLE');
+   const result={...identity,...parentTurn!==undefined?{parent_turn:parentTurn}:{},running:item.running===true,events,questions:state.questions,questions_truncated:state.questions_truncated,pending_approvals:state.pending_approvals,user_question_count:state.user_question_count,...command.action==='cancel'?{cancel_requested:true}:{},...removed?{removed_request_id:removed}:{}};
+   // Leave space for the authenticated report wrapper and JSON encoding overhead.
+   if(new TextEncoder().encode(JSON.stringify(result)).length>240*1024)throw fault('HISTORY_UNAVAILABLE');return result;
+  }catch(error){try{diagnostic(stage,diagnosticCodes.has(error?.nativeCode)?error.nativeCode:diagnosticCodes.has(error?.code)?error.code:'native/failed');}catch{}const codes=new Set(['WORKSPACE_UNAVAILABLE','IDENTITY_MISMATCH','NATIVE_UNAVAILABLE','NATIVE_FAILED','NATIVE_TIMEOUT','INVALID_COMMAND','HISTORY_UNAVAILABLE']);return{ok:false,error_code:codes.has(error?.safeCode)?error.safeCode:'NATIVE_FAILED'};}
+ };
+ const post=async(base,route,body,token)=>nativeCall(async signal=>{
+  const response=await fetchImpl(base+route,{method:'POST',headers:{'Content-Type':'application/json',Authorization:`Bearer ${token}`},credentials:'omit',redirect:'error',body:JSON.stringify(body),signal});
+  const value=await response.json();
+  if(!response?.ok){const terminal=(response?.status===403&&value?.error?.code==='NATIVE_DENIED')||(response?.status===409&&value?.error?.code==='NATIVE_CONFLICT');throw Object.assign(fault('NATIVE_UNAVAILABLE'),{terminal});}
+  if(!plain(value)||!Object.hasOwn(value,'result'))throw fault('NATIVE_UNAVAILABLE');return value.result;
+ });
+ const sendPending=async()=>{if(!pending)return;try{await post(pending.base,'report',pending.body,pending.body.lease_token);pending=null;}catch(error){if(error?.terminal===true)pending=null;throw error;}};
+ async function poll(){
+  if(!enabled||closed||busy)return;busy=true;
+  try{
+   if(pending){await sendPending();return;}
+   const view=unwrap(await nativeCall(()=>overview())),offer=view?.native_control;
+   if(!plain(offer)||!text(offer.command_id)||typeof offer.claim_token!=='string'||offer.claim_token.length<24||offer.claim_token.length>512)return;
+   const base=Object.hasOwn(view,'native_worker_url')?endpoint(view.native_worker_url):legacyBase;if(!base)return;
+   const lease=await post(base,'claim',{command_id:offer.command_id,claim_token:offer.claim_token,client_id:clientId},offer.claim_token);
+   if(closed||!plain(lease)||lease.command?.command_id!==offer.command_id||typeof lease.lease_token!=='string'||lease.lease_token.length<24)return;
+   const result=await execute(lease.command,lease.expires_at);if(closed)return;
+   pending={base,body:{command_id:offer.command_id,lease_token:lease.lease_token,client_id:clientId,result}};await sendPending();
+  }catch{}finally{busy=false;}
+ }
+ function schedule(){if(closed||!started||!enabled)return;timer=setTimeoutImpl(async()=>{timer=null;await poll();schedule();},pollIntervalMs);}
+ function start(){if(closed||started||!enabled)return;started=true;void poll().finally(schedule);}
+ function close(){closed=true;started=false;if(timer!==null)clearTimeoutImpl(timer);timer=null;for(const controller of controllers)controller.abort();controllers.clear();}
+ return{start,close,poll};
+})});

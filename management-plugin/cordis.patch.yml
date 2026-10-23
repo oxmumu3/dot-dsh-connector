@@ -1,0 +1,4 @@
+- insert:
+    - id: dot-dsh-management
+      name: dot-dsh-management
+      disabled: false
