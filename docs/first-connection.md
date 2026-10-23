@@ -1,6 +1,6 @@
 # 连接自己的 Dot
 
-安装实际收到的 `dot-dsh-management` 插件，在 Harness 打开「Dot 连接」，点击「连接我的 Dot」。
+在 [v0.6.0-preview.12 发行页](https://github.com/oxmumu3/dot-dsh-connector/releases/tag/v0.6.0-preview.12) 下载并安装 `dot-dsh-management-0.6.0-preview.12.tgz`，在 Harness 打开「Dot 连接」，点击「连接我的 Dot」。
 
 想先看完整过程，可打开 [首次连接的 HTML 模拟](first-connection-demo/index.html)。界面的三栏是阶段：按两个站点都需要登录计算，实际为六个人工环节（开始、登录 OpenAI、选择工作区并创建通道、确认运行密钥、登录 ChatGPT、确认创建个人插件），之后自动验证。已登录时会跳过相应登录；验证码、额外连接授权或工具审批可能增加操作。若本机还没有 Ego，连接前还会提示安装并完成首次浏览器设置。环节数不是点击次数，具体拆解见 [计数与源码核对](first-connection-demo/README.md)。
 
@@ -10,11 +10,13 @@
 
 ## 当前登录验收范围
 
+`0.6.0-preview.12` 已通过 Harness 官方界面安装并启用，54 个安装文件与源码及归档完全一致。使用安装目录中的 provider 和实际 worker，经真实 Dot 完成一次新鲜项目读取及恰好一个原生验证任务；独立回读确认首轮成功结束、非缓存、请求与结果精确匹配，管理页自动从等待首次调用变为云端在线。
+
 2026-10-23，当时安装的 `0.6.0-preview.9` 在本人已有有效登录的 ego 中，完成了一条新连接的实际验收：新建通道、创建专用运行密钥、创建并授权个人插件；密钥由插件自动保存到本机，仅当前用户可读写（文件权限 `0600`），无需复制。随后，真实 Dot 通过这个新插件成功列出项目，派发一个原生验证任务并取得精确匹配的完成结果。管理页自动显示「云端通道在线」和「连接验证已完成」。
 
 随后通过 ChatGPT 官方「添加账户」→「使用 Google 继续」→「使用其他账号」，到达 Google 邮箱输入页。本人完成登录后，实时回读已登录的 ChatGPT 页面。此前独立 Chromium 的“不安全浏览器”拒绝没有在这次 Ego 交互登录中出现。此证据覆盖实际 Google 登录，不是清空浏览器资料、创建全新 Google / OpenAI 账号或所有账号资格的验证。
 
-登录、验证码和授权由官方页面决定。若账号仍被拒绝，保留当前 ego 页面并显示具体等待原因；不会换浏览器、伪装浏览器或复制登录凭据绕过。未安装 Ego 的机器会增加一次安装确认和浏览器首次设置；空白机器上的实际下载安装仍需单独验收。
+登录、验证码和授权由官方页面决定。若账号仍被拒绝，保留当前 ego 页面并显示具体等待原因；不会换浏览器、伪装浏览器或复制登录凭据绕过。未安装 Ego 的机器会增加一次安装确认和浏览器首次设置。安装模块回归 31/31 通过，正式安装代码已在隔离目标中真实完成官方缓存安装包校验、复制、签名与系统安全检查；仅最后打开应用被拦截，现有 Ego 未改动。GUI 首次设置与完全空白机器仍未验收。
 
 连接页面交给你操作后，完成官方确认，再回到 Harness 点击「继续连接」。它会沿用同一个 ego 工作空间，核对实际结果后继续，不要求搬运密钥或编号。创建运行密钥后，请保留「Save your key／保存密钥」窗口，再回到 Harness 点「继续连接」；插件保存成功后才能关闭该窗口。如果提前点 Done 隐藏密钥，目前需要恢复处理，不能自动重新读取已隐藏的值。
 
@@ -42,4 +44,4 @@
 
 macOS、标准 Applications 路径下的 Harness Desktop `0.2.1-rc.2`、Harness 自带的 Node 与 Python 运行时。首次连接使用 ego lite，并下载 OpenAI Tunnel 组件；网络失败可以重试，不调整系统代理或停用现有网络。首次登录、验证码、平台最终授权以及组织管理员限制仍由官方页面控制。安装插件不会赋予账号本来没有的组织 / workspace 权限。
 
-维护者：奥克斯木木山，GitHub namespace `oxmumu3`。正式仓库：[oxmumu3/dot-dsh-connector](https://github.com/oxmumu3/dot-dsh-connector)。版本包在 Release 上传并核验后提供，选择 `dot-dsh-management` 原生包。实际验证阶段见 [验收记录](verification.md)。
+维护者：奥克斯木木山，GitHub namespace `oxmumu3`。正式仓库：[oxmumu3/dot-dsh-connector](https://github.com/oxmumu3/dot-dsh-connector)。在上述固定版本发行页选择 `dot-dsh-management` 原生包；源码快照不等于发布回执，资产可用性以发行页为准。实际验证阶段见 [验收记录](verification.md)。

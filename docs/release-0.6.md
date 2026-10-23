@@ -1,6 +1,6 @@
 # 0.6：把首次连接收进插件
 
-当前候选：`0.6.0-preview.12`（2026-10-23）。Ego 安装分支已通过真实隔离实测；preview.12 原生插件仍待本人安装并单独验收，最近完成原生安装与连接验收的是 preview.11。正式仓库归属已核验，候选源码与 Release 下载资产待上传。
+当前预览版：`0.6.0-preview.12`（2026-10-23）。已通过 Harness 官方界面安装并启用，54 个文件与源码及归档一致；安装后的真实 Dot 成功读取项目并完成恰好一个关联验证任务，管理页自动显示云端在线。Ego 安装分支另通过真实隔离实测。正式仓库源码已上传并逐文件核验，下载入口为 [v0.6.0-preview.12 发行页](https://github.com/oxmumu3/dot-dsh-connector/releases/tag/v0.6.0-preview.12)。
 
 Dot 连接现在围绕两件事组织：首次接通自己的账号，以及日常查看 Harness 正在做什么。
 
@@ -20,7 +20,7 @@ preview.12 把缺少 Ego 时的准备也收进插件：点击「安装 Ego 并�
 
 ## 安装与使用
 
-把实际收到且来源已核验的 `dot-dsh-management` 原生插件包交给 Harness 安装，打开「Dot 连接」，点击「连接我的 Dot」，按提示完成必要的浏览器设置、登录和授权。preview.12 的公开版本包需等待 Release 上传并核验后提供。
+在上述发行页下载 `dot-dsh-management-0.6.0-preview.12.tgz`，交给 Harness 安装，打开「Dot 连接」，点击「连接我的 Dot」，按提示完成必要的浏览器设置、登录和授权。源码快照不等于发布回执，下载资产可用性以固定版本发行页为准。
 
 已连接的用户保留原来的连接和任务。新版不会自动重建已有的外部通道。新流程建立的连接在重启后恢复自己的通道，并展示上次完整验证时间；重新验证由你主动发起。
 
@@ -33,4 +33,4 @@ preview.12 把缺少 Ego 时的准备也收进插件：点击「安装 Ego 并�
 - 运行密钥按 30 天创建，尚无自动续期或自助换钥入口。到期或被撤销后，需维护者协助更新本机私有密钥；重新登录不能替代换钥。
 - 真实 Google 登录、读取与派任务、隔离安装路径、GUI 首次设置和空白机器首次连接分别记录，不能互相替代。详见 [验收记录](verification.md)。
 
-维护者：奥克斯木木山。正式仓库：[oxmumu3/dot-dsh-connector](https://github.com/oxmumu3/dot-dsh-connector)。仓库归属已核验；候选源码与 Release 下载资产待上传。
+维护者：奥克斯木木山。正式仓库：[oxmumu3/dot-dsh-connector](https://github.com/oxmumu3/dot-dsh-connector)。仓库归属与上传源码已核验；Release 发布及下载验收状态见 [验收记录](verification.md)。
