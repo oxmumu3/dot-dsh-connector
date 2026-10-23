@@ -1,0 +1,6 @@
+import {open,realpath,stat} from 'node:fs/promises';import {constants} from 'node:fs';import {isAbsolute,resolve,join} from 'node:path';
+const fail=()=>Object.assign(new Error('Owned task snapshot unavailable.'),{code:'BACKEND_OFFLINE'});
+/** Fixed connector state file, read-only. No lock acquisition, scans or replay. */
+export async function readOwnedTaskSnapshot(directory){
+ let file;try{if(typeof directory!=='string'||!isAbsolute(directory)||resolve(directory)!==directory||await realpath(directory)!==directory)throw 0;const dir=await stat(directory);if(!dir.isDirectory()||(dir.mode&0o077)!==0)throw 0;file=await open(join(directory,'state.json'),constants.O_RDONLY|constants.O_NOFOLLOW|constants.O_NONBLOCK);const before=await file.stat();if(!before.isFile()||before.nlink!==1||(before.mode&0o077)!==0||before.size<2||before.size>16*1024*1024)throw 0;const data=Buffer.alloc(before.size+1);const {bytesRead}=await file.read(data,0,data.length,0);const after=await file.stat();if(bytesRead!==before.size||before.ino!==after.ino||before.size!==after.size||before.mtimeMs!==after.mtimeMs)throw 0;const value=JSON.parse(new TextDecoder('utf-8',{fatal:true}).decode(data.subarray(0,bytesRead)));if(value?.version!==1||!Array.isArray(value.jobs)||value.jobs.length>100)throw 0;return value.jobs;}catch{throw fail();}finally{await file?.close();}
+}

@@ -1,0 +1,10 @@
+import http from 'node:http';import {isValidToken,publicError} from './bridge.js';
+const fail=code=>Object.assign(new Error(code==='REQUEST_TIMEOUT'?'Connector operation timed out.':'Connector backend unavailable.'),{code});
+export function canonicalBridgeUrl(value){try{if(typeof value!=='string')throw 0;const u=new URL(value);if(u.protocol!=='http:'||u.hostname!=='127.0.0.1'||!u.port||u.username||u.password||u.pathname!=='/rpc'||u.search||u.hash||value!==`http://127.0.0.1:${u.port}/rpc`)throw 0;return u;}catch{throw fail('BACKEND_REJECTED');}}
+export function callBridge({url,token,timeoutMs=12000},tool,args){
+ let target;try{target=canonicalBridgeUrl(url);if(!isValidToken(token)||!Number.isInteger(timeoutMs)||timeoutMs<1||timeoutMs>12000)throw 0;}catch{return Promise.reject(fail('BACKEND_REJECTED'));}
+ return new Promise((resolve,reject)=>{let settled=false;const finish=(error,value)=>{if(settled)return;settled=true;clearTimeout(timer);error?reject(error):resolve(value);};let body;try{body=JSON.stringify({tool,args});if(Buffer.byteLength(body)>65536)throw 0;}catch{return reject(fail('BACKEND_REJECTED'));}
+  const req=http.request(target,{method:'POST',agent:false,headers:{authorization:`Bearer ${token}`,'content-type':'application/json','content-length':Buffer.byteLength(body)}},res=>{const chunks=[];let size=0;res.on('data',chunk=>{size+=chunk.length;if(size>1024*1024){finish(fail('BACKEND_OFFLINE'));res.destroy();req.destroy();}else chunks.push(chunk);});res.on('error',()=>finish(fail('BACKEND_OFFLINE')));res.on('end',()=>{try{const value=JSON.parse(Buffer.concat(chunks).toString('utf8'));if(res.statusCode!==200||!value||!Object.hasOwn(value,'result')){const safe=publicError(value?.error);return finish(Object.assign(new Error(safe.message),{code:safe.code}));}finish(null,value.result);}catch{finish(fail('BACKEND_OFFLINE'));}});});
+  const timer=setTimeout(()=>{finish(fail('REQUEST_TIMEOUT'));req.destroy();},timeoutMs);req.on('error',()=>finish(fail('BACKEND_OFFLINE')));req.end(body);
+ });
+}
