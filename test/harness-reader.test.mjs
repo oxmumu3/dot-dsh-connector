@@ -1,6 +1,6 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {mkdtemp,writeFile,realpath,rm} from 'node:fs/promises';
+import {mkdtemp,writeFile,realpath,rm,mkdir,symlink} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {spawnSync} from 'node:child_process';
@@ -229,4 +229,30 @@ test('persisted plugin manifests do not invent enabled state or expose unreviewe
  for(const value of [secret,'DO NOT EXPORT DESCRIPTION','DO_NOT_EXPORT_PATH'])assert.ok(!JSON.stringify(result).includes(value));
  const unknown=fixture({values:{'pluginInventory/list':{source:secret,entries:[]}}});
  assert.equal(Object.hasOwn(await create({...unknown,principal:'owner'}).call('owner','harness_status',{}),'plugins_source'),false);
+});
+
+
+test('directory exact dot is a registered root alias while descriptor security stays enforced',async()=>{
+ const {createHarnessFiles}=await import('../src/harness-files.js');
+ const base=await realpath(await mkdtemp(join(tmpdir(),'dsh-root-alias-')));
+ try{
+  const root=join(base,'project'),outside=join(base,'outside'),privateRoot=join(base,'.dsh');
+  await Promise.all([mkdir(root),mkdir(outside),mkdir(privateRoot)]);
+  await Promise.all([writeFile(join(root,'README.md'),'public project'),writeFile(join(root,'.env'),'private value'),writeFile(join(outside,'outside.txt'),'outside'),symlink(outside,join(root,'linked'))]);
+  const files=createHarnessFiles({redact:implementation.redactText});
+  const f=fixture({values:{'workspace/baseline':{items:[{...baseline.items[0],path:root},{...baseline.items[0],workspaceId:'private',path:privateRoot}]}}});
+  const reader=create({...f,files,principal:'owner'});
+  const omitted=await reader.call('owner','harness_list_directory',{workspace_id:'w1'});
+  const empty=await reader.call('owner','harness_list_directory',{workspace_id:'w1',path:''});
+  const dot=await reader.call('owner','harness_list_directory',{workspace_id:'w1',path:'.'});
+  const stable=({read_at,...result})=>result;
+  assert.deepEqual(stable(dot),stable(empty));assert.deepEqual(stable(dot),stable(omitted));
+  assert.ok(JSON.stringify(dot).includes('README.md'));assert.ok(!JSON.stringify(dot).includes('.env'));
+  for(const path of ['..','./','./README.md','linked/..','linked','linked/outside.txt']){
+   await assert.rejects(reader.call('owner','harness_list_directory',{workspace_id:'w1',path}),undefined,path);
+  }
+  await assert.rejects(reader.call('owner','harness_read_file',{workspace_id:'w1',path:'.'}));
+  await assert.rejects(reader.call('owner','harness_list_directory',{workspace_id:'missing',path:'.'}));
+  await assert.rejects(reader.call('owner','harness_list_directory',{workspace_id:'private',path:'.'}));
+ }finally{await rm(base,{recursive:true,force:true});}
 });

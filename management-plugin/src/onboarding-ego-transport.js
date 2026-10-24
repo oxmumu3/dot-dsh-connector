@@ -197,16 +197,15 @@ export function createEgoTransport({executablePath,spawnImpl=spawn,killGroupImpl
  return{
   async inspectBinding({spaceId,signal,timeoutMs}={}){
    validSpace(spaceId);
-   return invoke({prelude:'',script:`const spaces = await listTaskSpaces();
-if (!Array.isArray(spaces) || spaces.some(space => !Number.isSafeInteger(space?.id) || space.id < 1) || new Set(spaces.map(space => space.id)).size !== spaces.length) throw Object.assign(new Error('Incomplete space inventory.'), {code:'ONBOARDING_PAGE_CHANGED'});
+   // Ego's nodejs runner needs a direct API await before the receipt IIFE.
+   return invoke({prelude:'const spaces = await listTaskSpaces();',script:`if (!Array.isArray(spaces) || spaces.some(space => !Number.isSafeInteger(space?.id) || space.id < 1) || new Set(spaces.map(space => space.id)).size !== spaces.length) throw Object.assign(new Error('Incomplete space inventory.'), {code:'ONBOARDING_PAGE_CHANGED'});
 return {spaceId:${spaceId},found:spaces.some(space => space.id === ${spaceId})};`,signal,timeoutMs});
   },
   async recoverBinding({name,signal,timeoutMs}={}){
    if(typeof name!=='string'||!name.trim()||name.length>120||/[\r\n\0]/.test(name))throw error('ONBOARDING_PAGE_CHANGED');
    // Recover a lost creation receipt by its one persisted name, without another
    // creation or an ownership change. Unknown or ambiguous inventories fail shut.
-   return invoke({prelude:'',script:`const spaces = await listTaskSpaces();
-if (!Array.isArray(spaces) || spaces.some(space => !Number.isSafeInteger(space?.id) || space.id < 1 || typeof space.name !== 'string') || new Set(spaces.map(space => space.id)).size !== spaces.length) throw Object.assign(new Error('Incomplete space inventory.'), {code:'ONBOARDING_PAGE_CHANGED'});
+   return invoke({prelude:'const spaces = await listTaskSpaces();',script:`if (!Array.isArray(spaces) || spaces.some(space => !Number.isSafeInteger(space?.id) || space.id < 1 || typeof space.name !== 'string') || new Set(spaces.map(space => space.id)).size !== spaces.length) throw Object.assign(new Error('Incomplete space inventory.'), {code:'ONBOARDING_PAGE_CHANGED'});
 const matches = spaces.filter(space => space.name === ${JSON.stringify(name)});
 if (matches.length === 0) return {found:false};
 if (matches.length !== 1) throw Object.assign(new Error('Ambiguous replacement space.'), {code:'ONBOARDING_PAGE_CHANGED'});

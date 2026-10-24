@@ -1,6 +1,23 @@
-# 0.6.0-preview.12 — installed, real Dot accepted, public Release downloads verified (2026-10-23)
+# 0.6.0-preview.14 — source repair candidate; preview.13 remains the verified public installation
 
-## Current live verification
+Preview.13 is publicly available and has been installed through Harness's official one-sentence installation flow. Preview.14 repairs issues discovered during live follow-up verification; it has not yet passed public-download, native-installation or live-renewal acceptance. The installation instructions continue to use the verified preview.13 URL.
+
+| Evidence layer | Current result |
+| --- | --- |
+| Preview.13 public distribution | Canonical ownership is `oxmumu3/dot-dsh-connector`. The published [v0.6.0-preview.13](https://github.com/oxmumu3/dot-dsh-connector/releases/tag/v0.6.0-preview.13) source commit is `6c132ca034446dea328f4ecc89d8e2c1304e35e8`; all 157 source files match the frozen export. All three release assets passed unauthenticated HTTP 200, byte-length and SHA-256 checks. |
+| Preview.13 official installation | The actual Harness `plugin_manager.install_bundle` returned applied, version 0.6.0-preview.13, zero warnings and exit 0. All 56 installed files match archive and source. Nine other plugins / 463 files, stable configuration and the original Host identity remained unchanged. |
+| Preview.13 native package | 188225 bytes, SHA-256 `110498c4f4cdd3e18b10db0eb749318ad4764b4857fd6c283292926785c643eb`. The source ZIP is 923232 bytes, SHA-256 `7932334f22726661567483e9103a34090c3c6f79781de7a120e56d1c484a39d1`. |
+| Preview.13 regression | The full run reported 740 passed, 3 failed and 20 skipped. The three stale Ego-runtime fixtures were corrected and their targeted rerun passed 3/3. This is not a claim of an all-green full rerun; the 20 optional browser tests remain skipped. |
+| Crash and renewal checks | Supervisor tests passed 24/24; an isolated Host SIGKILL test using the actual Harness Electron executable stopped only the owned fixture child and preserved an unrelated child. The final package's JavaScript is unchanged from that tested package. Expanded renewal tests passed 12/12. These isolated checks do not establish production crash or official-account renewal acceptance. |
+| Actual connection renewal | Preview.13 reached a live Ego execution compatibility error before replacing the runtime key. The old key and original channel were retained. The preview.14 source repair addresses that execution path; actual installation, owner confirmation, candidate validation and successful key promotion remain pending. |
+| Actual Dot follow-up | A new real Dot read/task verification is in progress. No fresh completed-task receipt is claimed at this checkpoint; the accepted preview.12 results below remain historical evidence. |
+| Preview.14 root-directory reading | The candidate normalizes an exact `.` directory request to the workspace root. This does not widen file access or authorize arbitrary paths; installed acceptance remains pending. |
+
+The public package contains no account credentials or private acceptance identifiers. Existing-account Google login, the isolated Ego installer, fresh-connection acceptance and cold restore retain the version-specific limits recorded below. Completely fresh browser/machine setup, every new account's eligibility and generic unattended reliability are not established by these checks.
+
+# Historical 0.6.0-preview.12 — installed, real Dot accepted, public Release downloads verified (2026-10-23)
+
+## Preview.12 live verification
 
 Preview.12 was installed and immediately enabled through the official Harness UI. All 54 installed files match the archive and source. The provider loaded from the installation directory and the actual preview.12 worker then passed a fresh real Dot verification. Independent manager readback confirmed one fresh successful project-list event and exactly one native task: turn 1, succeeded/completed, uncached, with the exact request marker and matching session/message identity. The native UI automatically moved from waiting for first call to cloud online and showed five retained tasks. Existing account and task state was preserved. This supersedes the earlier source-provider check against the preview.11 worker.
 

@@ -1,12 +1,12 @@
 {
   "name": "dot-dsh-connector",
-  "version": "0.6.0-preview.13",
+  "version": "0.6.0-preview.14",
   "lockfileVersion": 3,
   "requires": true,
   "packages": {
     "": {
       "name": "dot-dsh-connector",
-      "version": "0.6.0-preview.13",
+      "version": "0.6.0-preview.14",
       "license": "MIT",
       "dependencies": {
         "@modelcontextprotocol/sdk": "1.32.1",

@@ -238,6 +238,14 @@ test('missing-Space inventory is read only, exact, and rejects incomplete or dup
  for(const spaces of [[],[{id:110,name:'Owned'},{id:158,name:'Other'}]]){const f=fixture({listTaskSpaces:async()=>spaces,taskSpace:async()=>assert.fail('inventory must not select a Space')});assert.deepEqual(await f.transport.inspectBinding({spaceId:110}),{spaceId:110,found:spaces.length>0});assert.doesNotMatch(f.calls[0].script,/claimTaskSpace|newPage|takeOverTaskSpace/);}
  for(const spaces of [null,{},[{name:'Missing ID'}],[{id:110},{id:110}]])await assert.rejects(fixture({listTaskSpaces:async()=>spaces}).transport.inspectBinding({spaceId:110}),{code:'ONBOARDING_PAGE_CHANGED'});
 });
+for(const operation of ['inspectBinding','recoverBinding'])test(`${operation} begins with direct inventory await for the official Ego CLI`,async()=>{
+ const f=fixture({listTaskSpaces:async()=>[],taskSpace:async()=>assert.fail('an empty inventory must not select a Space')});
+ assert.deepEqual(await f.transport[operation](operation==='inspectBinding'?{spaceId:110}:{name:'Replacement'}),operation==='inspectBinding'?{spaceId:110,found:false}:{found:false});
+ // Ego 0.6.0.12 throws ReferenceError("await is not defined") when the
+ // first await is the receipt IIFE. A direct API await must precede it.
+ const script=f.calls[0].script;
+ assert.ok(script.indexOf('const spaces = await listTaskSpaces();')<script.indexOf('const __returned = await (async () => {'),'inventory must execute in the direct-await prelude');
+});
 test('replacement recovery finds only one exact name and never creates or claims a Space',async()=>{
  const selected=[],f=fixture({listTaskSpaces:async()=>[{id:158,name:'Replacement'},{id:159,name:'Other'}],taskSpace:async id=>{selected.push(id);return{spaceId:id,pages:async()=>[{label:'p1'}]};}});assert.deepEqual(await f.transport.recoverBinding({name:'Replacement'}),{found:true,spaceId:158,platformPage:'p1'});assert.deepEqual(selected,[158]);assert.doesNotMatch(f.calls[0].script,/claimTaskSpace|newPage|takeOverTaskSpace/);
  assert.deepEqual(await f.transport.recoverBinding({name:'Absent'}),{found:false});

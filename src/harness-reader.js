@@ -11,7 +11,7 @@ const schemas={
  harness_list_workspaces:z.object({offset,limit}).strict(),
  harness_list_sessions:z.object({workspace_id:workspace.optional(),query:z.string().max(200).optional(),offset,limit}).strict(),
  harness_read_session:z.object({session_id:z.string().min(1).max(256),offset,limit}).strict(),
- harness_list_directory:z.object({workspace_id:workspace,path:relativePath.optional(),offset,limit}).strict(),
+ harness_list_directory:z.object({workspace_id:workspace,path:z.preprocess(value=>value==='.'?'':value,relativePath.optional()),offset,limit}).strict(),
  harness_read_file:z.object({workspace_id:workspace,path:relativePath.refine(Boolean),offset,max_bytes:z.number().int().min(1).max(32768).optional()}).strict(),
 };
 const RPC_METHODS=new Set(['workspace/baseline','session/list','session/projections','session/page','pluginInventory/list']);
