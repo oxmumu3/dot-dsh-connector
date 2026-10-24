@@ -4,6 +4,18 @@ const api=await import('../management-plugin/src/onboarding-ego-platform.js').ca
 const identity={directory:'/private/synthetic/onboarding',runtimeKeyFile:'/private/synthetic/onboarding/runtime.key',installationId:'a'.repeat(32),tunnelName:'dsh-dot-'+'a'.repeat(32),state:{}};
 const AsyncFunction=Object.getPrototypeOf(async function(){}).constructor;
 async function phase(observation,extra={}){assert.equal(typeof api.buildEgoPlatformPhaseScript,'function');const actions=[];const page={url:async()=>extra.url??'https://platform.openai.com/settings/organization/tunnels',evaluate:async()=>observation,click:async s=>actions.push(['click',s]),fill:async(s,v)=>actions.push(['fill',s,v]),goto:async url=>actions.push(['goto',url]),keyboard:{press:async key=>actions.push(['press',key])}};const script=api.buildEgoPlatformPhaseScript({...identity,...extra});const result=await new AsyncFunction('page',script)(page);return{result,actions,script};}
+test('exact Ego new-tab and blank pages automatically open the official initial or renewal entry',async()=>{
+ for(const options of [{},{renewalId:'c'.repeat(32),state:{tunnel_id:'tunnel_1234567890abcdef'}}])for(const url of ['about:blank','chrome://new-tab-page/']){
+  const {result,actions}=await phase({kind:'changed'},{...options,url});
+  assert.deepEqual(actions,[['goto','https://platform.openai.com/settings/organization/'+(options.renewalId?'api-keys':'tunnels')]]);
+  assert.deepEqual(result,{status:'pending',step:'platform_login'});
+ }
+});
+test('new-tab lookalikes and unrelated internal pages never receive automatic Platform navigation',async()=>{
+ for(const url of ['chrome://settings/','chrome://version/','chrome://new-tab-page/?source=foreign','chrome://new-tab-page/#foreign','chrome://user@new-tab-page/','https://new-tab-page/','https://platform.openai.com.attacker.invalid/','about:blank#foreign'])for(const state of [{},{tunnel_id:'tunnel_1234567890abcdef'}]){
+  const {result,actions}=await phase({kind:'changed'},{url,state});assert.deepEqual(actions,[]);assert.equal(result.waiting_for,'login');
+ }
+});
 test('existing matching tunnel draft is preserved and records intent without final Create',async()=>{const{result,actions}=await phase({kind:'tunnel_draft',name:identity.tunnelName});assert.equal(result.patch.tunnel_intent,true);assert.equal(result.step,'tunnel_confirm');assert.deepEqual(actions,[]);});
 test('foreign tunnel draft fails closed without navigation or edit',async()=>{await assert.rejects(phase({kind:'tunnel_draft',name:'someone-else'}),{code:'ONBOARDING_PAGE_CHANGED'});});
 test('real exact tunnel receipt retains workspace but does not claim key saved',async()=>{const{result}=await phase({kind:'tunnel_ready',tunnel_id:'tunnel_1234567890abcdef',tunnel_name:identity.tunnelName,workspace_id:'12345678-1234-1234-1234-123456789012'});assert.equal(result.status,'tunnel_ready');assert.equal(result.key_saved,undefined);});
@@ -89,7 +101,31 @@ test('actual capture arm accepts a labelled native radio and only the unchanged 
 
 test('renewal requires an existing tunnel and derives a unique key name and isolated candidate path',async()=>{
  const renewalId='c'.repeat(32);assert.throws(()=>api.buildEgoPlatformPhaseScript({...identity,renewalId}),{code:'ONBOARDING_PRIVATE_STATE'});assert.throws(()=>api.buildEgoPlatformPhaseScript({...identity,renewalId:'../key',state:{tunnel_id:tunnelId}}),{code:'ONBOARDING_PRIVATE_STATE'});
- const {actions,script}=await phase({kind:'key_name',name:'',selector:'loc=css:#name'},{renewalId,state:{tunnel_id:tunnelId},url:'https://platform.openai.com/settings/organization/api-keys'});assert.deepEqual(actions,[['fill','loc=css:#name',identity.tunnelName+'-runtime-'+renewalId]]);assert.ok(script.includes('runtime-next-'+renewalId+'.key'));
+ const {actions,script}=await phase({kind:'key_name',name:'',selector:'loc=css:#name'},{renewalId,state:{tunnel_id:tunnelId},url:'https://platform.openai.com/settings/organization/api-keys'});assert.deepEqual(actions,[['fill','loc=css:#name','dsh-dot-'+identity.installationId.slice(0,12)+'-runtime-'+renewalId]]);assert.ok(script.includes('runtime-next-'+renewalId+'.key'));
+});
+test('renewal names fit the official 64-character limit without truncating any renewal identity',async()=>{
+ const ids=['c'.repeat(32),'c'.repeat(31)+'d'],names=[];
+ for(const renewalId of ids){const {actions}=await phase({kind:'key_name',name:'',selector:'loc=css:#name',maxLength:64},{renewalId,state:{tunnel_id:tunnelId},url:'https://platform.openai.com/settings/organization/api-keys'});const name=actions[0][2];assert.ok(name.length<=64);assert.ok(name.endsWith(renewalId));names.push(name);}
+ assert.equal(new Set(names).size,2);
+ const initial=await phase({kind:'key_name',name:'',selector:'loc=css:#name',maxLength:64},{state:{tunnel_id:tunnelId},url:'https://platform.openai.com/settings/organization/api-keys'});assert.equal(initial.actions[0][2],identity.tunnelName+'-runtime');
+});
+test('actual DOM maxlength permits repair of only the exact legacy truncated unsubmitted renewal draft',async()=>{
+ const renewalId='c'.repeat(32),value=(identity.tunnelName+'-runtime-'+renewalId).slice(0,64),actions=[];
+ const field={id:'key-name',value,maxLength:64,getClientRects:()=>[{}]},dialog={getClientRects:()=>[{}],querySelectorAll:selector=>selector==='input[placeholder="My Test Key"]'?[field]:[]};
+ const previous={document:globalThis.document,location:globalThis.location,getComputedStyle:globalThis.getComputedStyle,CSS:globalThis.CSS};
+ try{
+  globalThis.document={documentElement:{},querySelectorAll:selector=>selector==='[role="dialog"],dialog[open]'?[dialog]:selector==='#key-name'?[field]:[]};globalThis.location={pathname:'/settings/organization/api-keys'};globalThis.getComputedStyle=()=>({visibility:'visible',display:'block'});globalThis.CSS={escape:value=>value};
+  const page={url:async()=> 'https://platform.openai.com/settings/organization/api-keys',evaluate:async(fn,input)=>fn(input),fill:async(selector,value)=>actions.push(['fill',selector,value])};
+  const result=await new AsyncFunction('page',api.buildEgoPlatformPhaseScript({...identity,renewalId,state:{tunnel_id:tunnelId}}))(page);
+  assert.deepEqual(actions,[['fill','loc=css:#key-name','dsh-dot-'+identity.installationId.slice(0,12)+'-runtime-'+renewalId]]);assert.deepEqual(result,{status:'pending',step:'key_confirm'});assert.equal(result.patch,undefined);
+ }finally{for(const[k,v]of Object.entries(previous)){if(v===undefined)delete globalThis[k];else globalThis[k]=v;}}
+});
+test('foreign draft names, uncertain grants, and other maxlength values cannot be overwritten during renewal',async()=>{
+ const renewalId='c'.repeat(32),legacy=identity.tunnelName+'-runtime-'+renewalId,base={renewalId,state:{tunnel_id:tunnelId},url:'https://platform.openai.com/settings/organization/api-keys'};
+ for(const observation of [{name:'another draft',maxLength:64},{name:legacy,maxLength:64},{name:legacy.slice(0,64),maxLength:63},{name:legacy.slice(0,64),maxLength:65},{name:legacy.slice(0,64)}])await assert.rejects(phase({kind:'key_name',selector:'loc=css:#name',...observation},base),{code:'ONBOARDING_PAGE_CHANGED'});
+ const truncated={kind:'key_name',selector:'loc=css:#name',name:legacy.slice(0,64),maxLength:64};
+ await assert.rejects(phase(truncated,{...base,state:{tunnel_id:tunnelId,key_intent:true}}),{code:'ONBOARDING_PAGE_CHANGED'});
+ await assert.rejects(phase(truncated,{...base,renewalId:undefined}),{code:'ONBOARDING_PAGE_CHANGED'});
 });
 test('renewal cannot create a tunnel from a stale tunnel page',async()=>{
  const renewalId='c'.repeat(32);await assert.rejects(phase({kind:'tunnel_draft',name:identity.tunnelName},{renewalId,state:{tunnel_id:tunnelId}}),{code:'ONBOARDING_PAGE_CHANGED'});

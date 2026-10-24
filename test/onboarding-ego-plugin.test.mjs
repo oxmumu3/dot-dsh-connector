@@ -57,6 +57,18 @@ test('only an explicitly assigned page is navigated and no Space APIs are invoke
  assert.deepEqual(fresh.actions,[['goto','https://chatgpt.com/plugins']]);
  assert.equal(fresh.receipt.navigated,true);
 });
+test('Ego new-tab dedicated pages open official plugin and Dot entries only when navigation is authorized',async()=>{
+ for(const [build,target,step] of [[pluginScript,'https://chatgpt.com/plugins','plugin_page'],[dotScript,'https://chatgpt.com/dots/home','dot_page']]){
+  const result=await execute(build({allowNavigate:true}),{url:'chrome://new-tab-page/'});assert.deepEqual(result.actions,[['goto',target]]);assert.equal(result.receipt.step,step);assert.equal(result.receipt.navigated,true);
+  assert.deepEqual((await execute(build(),{url:'chrome://new-tab-page/'})).calls,[['url']]);
+ }
+ assert.deepEqual((await execute(dotScript({mode:'pending',allowNavigate:true}),{url:'chrome://new-tab-page/'})).calls,[['url']]);
+});
+test('new-tab lookalikes and unrelated internal pages never receive plugin or Dot navigation',async()=>{
+ for(const url of ['chrome://settings/','chrome://version/','chrome://new-tab-page/?source=foreign','chrome://new-tab-page/#foreign','chrome://user@new-tab-page/','https://new-tab-page/','about:blank#foreign'])for(const build of [pluginScript,dotScript]){
+  const result=await execute(build({allowNavigate:true}),{url});assert.deepEqual(result.calls,[['url']]);assert.equal(result.receipt.step,'chatgpt_login');
+ }
+});
 
 for(const url of ['http://chatgpt.com/plugins','https://chatgpt.com.attacker.invalid/plugins','https://user@chatgpt.com/plugins','https://accounts.google.com/v3/signin/challenge','https://chatgpt.com/auth/login'])test('foreign/auth pages wait without touching DOM: '+url,async()=>{
  const result=await execute(pluginScript({allowNavigate:true}),{url});

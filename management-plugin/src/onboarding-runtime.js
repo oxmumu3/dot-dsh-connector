@@ -175,15 +175,19 @@ export function createOnboardingRuntime({local,browserFactory=defaultBrowser,ego
    if(valid(g)&&state.phase==='ready')supervise(g,()=>transportHealth({startedAt:metadata.attempt_started_at,signal}));
   }catch(error){if(!valid(g))return;const code=Object.hasOwn(ERRORS,error?.code)?error.code:'CONNECTION_FAILED';const handoff=code==='ONBOARDING_EGO_HANDOFF'&&Object.hasOwn(BROWSER_STEPS,state.step)?{step:state.step,message:BROWSER_STEPS[state.step].message,waiting_for:BROWSER_STEPS[state.step].waiting_for}:undefined;update('blocked',g,{code,message:handoff?.message??ERRORS[code]});if(handoff)state={...state,...handoff};if(!['VERIFY_TIMEOUT','ONBOARDING_AUTH_BROWSER_REJECTED','ONBOARDING_EGO_HANDOFF','ONBOARDING_EGO_CONTROL','ONBOARDING_EGO_TIMEOUT'].includes(code)){const failedTunnel=tunnel;tunnel=undefined;await failedTunnel?.close();}}
  }
- function supervise(g,read,{allowPending=false}={}){
-  const active=()=>valid(g)&&['ready','restoring'].includes(state.phase);
-  const offline=()=>{if(active()){state.verification.tunnel_online=false;update('blocked',g,{code:'CONNECTION_FAILED',message:ERRORS.CONNECTION_FAILED});}};
-  monitor=setInterval(()=>{if(!active()||monitoring)return;const probe=Promise.resolve().then(read).then(receipt=>{
+ function supervise(g,read,{allowPending=false,startupUntil=0}={}){
+  let settled=startupUntil===0;
+  // A health failure does not invalidate the saved task proof. Keep observing
+  // this same transport so a fresh receipt can recover its public state.
+  const active=()=>valid(g)&&(['ready','restoring'].includes(state.phase)||!settled&&state.phase==='connecting'||state.phase==='blocked'&&state.error?.code==='CONNECTION_FAILED');
+  const offline=()=>{if(active()){state.verification.tunnel_online=false;if(!settled&&now()<startupUntil)return;settled=true;update('blocked',g,{code:'CONNECTION_FAILED',message:ERRORS.CONNECTION_FAILED});}};
+  const check=()=>{if(!active()||monitoring)return;const probe=Promise.resolve().then(read).then(receipt=>{
    if(!active())return;
-   if(receipt?.tunnel_online===true){state.verification.tunnel_online=true;if(state.phase==='restoring'){update('ready',g);state.message='本机连接已恢复；读取和任务能力沿用有日期的上次验证记录。';}}
-   else if(allowPending&&receipt?.awaiting_first_call===true){state.verification.tunnel_online=false;if(state.phase!=='restoring')update('restoring',g);}
+   if(receipt?.tunnel_online===true){settled=true;state.verification.tunnel_online=true;if(state.phase!=='ready'){update('ready',g);if(verificationSource==='saved_receipt')state.message='本机连接已恢复；读取和任务能力沿用有日期的上次验证记录。';}}
+   else if(allowPending&&receipt?.awaiting_first_call===true){settled=true;state.verification.tunnel_online=false;if(state.phase!=='restoring')update('restoring',g);}
    else offline();
-  },offline);monitoring=probe;probe.finally(()=>{if(monitoring===probe)monitoring=undefined;}).catch(()=>{});},monitorMs);monitor.unref?.();
+  },offline);monitoring=probe;probe.finally(()=>{if(monitoring===probe)monitoring=undefined;}).catch(()=>{});};
+  monitor=setInterval(check,monitorMs);monitor.unref?.();if(startupUntil)check();
  }
  async function restoreTransport(g,signal,reference){
   try{
@@ -227,7 +231,7 @@ export function createOnboardingRuntime({local,browserFactory=defaultBrowser,ego
    // The official process reads the key from its launch path. Restart it on
    // the canonical file before removing the candidate path from use.
    await startCanonical();if(!valid(g))return;renewalPurpose=false;const canonicalStartedAt=new Date(now()).toISOString();
-   if(metadata.completed_at){lastVerifiedAt=metadata.completed_at;verificationSource='saved_receipt';state.verification={tunnel_online:false,chatgpt_connected:true,dot_read:true,task_complete:true};update('restoring',g);state.message='连接授权已更新，通道已恢复。可以继续向 Dot 派任务。';await completeBrowser(g,signal);if(valid(g))supervise(g,()=>transportHealth({startedAt:canonicalStartedAt,signal}),{allowPending:true});}
+   if(metadata.completed_at){lastVerifiedAt=metadata.completed_at;verificationSource='saved_receipt';state.verification={tunnel_online:false,chatgpt_connected:true,dot_read:true,task_complete:true};update('connecting',g);state.message='连接授权已更新，正在恢复本机通道。';await completeBrowser(g,signal);if(valid(g))supervise(g,()=>transportHealth({startedAt:canonicalStartedAt,signal}),{allowPending:true,startupUntil:stamp(canonicalStartedAt)+Math.min(verifyTimeoutMs,45000)});}
    else{update('blocked',g,{code:'KEY_RENEW_CONTINUE',message:ERRORS.KEY_RENEW_CONTINUE});}
   }catch(error){
    if(!valid(g))return;

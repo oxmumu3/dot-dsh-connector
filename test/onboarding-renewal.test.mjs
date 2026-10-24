@@ -54,6 +54,51 @@ test('initial tunnel receipt is never persisted before its observed credential e
  assert.equal((await f.r.status()).credential.expiry_source,'estimated');
 });
 test('renewal retains resources and task proof, validates candidate and runs the accepted canonical key',async t=>{const f=await fixture(t);const count=f.calls.filter(c=>c[0]==='task').length;await f.r.renew();const s=await settle(f.r,s=>['restoring','ready','blocked'].includes(s.phase)&&s.actions.renew);assert.notEqual(s.phase,'blocked');assert.equal(s.credential.state,'valid');assert.equal(s.credential.renewal_pending,false);assert.equal(f.calls.filter(c=>c[0]==='task').length,count);assert.equal(f.calls.filter(c=>c[0]==='plugin').length,1);assert.equal(f.calls.filter(c=>c[0]==='renew').length,1);assert.equal(f.calls.filter(c=>c[0]==='start').at(-1)[2],join(f.directory,'runtime.key'));const after=JSON.parse(await readFile(join(f.directory,'state.json'),'utf8'));for(const key of ['installation_id','tunnel_id','request_id','completed_at'])assert.equal(after[key],f.before[key]);assert.doesNotMatch(JSON.stringify(s),/synthetic-key|runtime-next|tunnel_test/);});
+test('renewed canonical transport gets its own cold-start grace before waiting for a real cloud call',async t=>{
+ let renewing=false,checks=0,online=false,elapsed=0;
+ const f=await fixture(t,{now:()=>Date.now()+elapsed,monitorMs:2,verifyTimeoutMs:45000,transportHealth:async()=>{
+  if(!renewing)return{tunnel_online:true};checks++;
+  if(checks===1)return{tunnel_online:false,awaiting_first_call:true}; // Candidate accepted.
+  if(checks<=3){elapsed+=10000;if(checks===2)throw Error('first health response not yet available');return{tunnel_online:false};} // Canonical first poll still settling.
+  return online?{tunnel_online:true}:{tunnel_online:false,awaiting_first_call:true};
+ }});
+ renewing=true;await f.r.renew();
+ const pending=await settle(f.r,s=>s.phase==='blocked'||checks>=4&&s.phase==='restoring'&&s.actions.renew);
+ assert.equal(pending.phase,'restoring');assert.equal(pending.verification.tunnel_online,false);
+ assert.equal(pending.credential.renewal_pending,false);assert.equal(pending.credential.expiry_source,'estimated');
+ online=true;const ready=await settle(f.r,s=>s.phase==='ready');assert.equal(ready.verification.tunnel_online,true);
+ assert.equal(f.calls.filter(c=>c[0]==='task').length,1);assert.equal(f.calls.filter(c=>c[0]==='renew').length,1);
+ assert.equal(f.calls.filter(c=>c[0]==='start').length,3,'old, candidate, then canonical only');
+ assert.deepEqual(JSON.parse(await readFile(join(f.directory,'state.json'),'utf8')),f.before);
+});
+test('renewed canonical warmup is bounded and cannot label unknown health online',async t=>{
+ let renewing=false,checks=0,elapsed=0,online=false;
+ const f=await fixture(t,{now:()=>Date.now()+elapsed,monitorMs:2,verifyTimeoutMs:45000,transportHealth:async()=>{
+  if(!renewing)return{tunnel_online:true};if(++checks===1)return{tunnel_online:false,awaiting_first_call:true};
+  elapsed+=50000;return{tunnel_online:online};
+ }});
+ renewing=true;await f.r.renew();const blocked=await settle(f.r,s=>s.phase==='blocked');
+ assert.equal(blocked.error.code,'CONNECTION_FAILED');assert.equal(blocked.verification.tunnel_online,false);
+ assert.equal(blocked.credential.renewal_pending,false);assert.equal(blocked.last_verified_at,f.before.completed_at);
+ online=true;await settle(f.r,s=>s.phase==='ready');assert.equal(f.calls.filter(c=>c[0]==='start').length,3);
+});
+test('renewal health supervision recovers a transient failure only after fresh online health without another grant or task',async t=>{
+ let health='online';const f=await fixture(t,{monitorMs:2,transportHealth:async()=>{
+  if(health==='error')throw Error('temporary health failure');
+  return{tunnel_online:health==='online'};
+ }});
+ await f.r.renew();await settle(f.r,s=>s.phase==='ready'&&s.actions.renew);
+ for(const unavailable of ['offline','error']){
+  health=unavailable;const blocked=await settle(f.r,s=>s.phase==='blocked');
+  assert.equal(blocked.error.code,'CONNECTION_FAILED');assert.equal(blocked.verification.tunnel_online,false);
+  health='unknown';await sleep(20);assert.equal((await f.r.status()).phase,'blocked');
+  health='online';const recovered=await settle(f.r,s=>s.phase==='ready');
+  assert.equal(recovered.error,undefined);assert.equal(recovered.last_verified_at,f.before.completed_at);
+ }
+ assert.equal(f.calls.filter(c=>c[0]==='task').length,1);assert.equal(f.calls.filter(c=>c[0]==='renew').length,1);
+ assert.equal(f.calls.filter(c=>c[0]==='start').length,3);
+ assert.deepEqual(JSON.parse(await readFile(join(f.directory,'state.json'),'utf8')),f.before);
+});
 test('unaccepted candidate never overwrites the current key and restores its transport',async t=>{const f=await fixture(t);f.state.newKeyAccepted=false;await f.r.renew();const s=await settle(f.r,s=>s.phase==='blocked');assert.equal(s.error.code,'KEY_RENEW_UNVERIFIED');assert.equal(await readFile(join(f.directory,'runtime.key'),'utf8'),'old-synthetic-key');assert.equal(f.calls.filter(c=>c[0]==='start').at(-1)[1],'old-synthetic-key');assert.equal(s.credential.renewal_pending,true);assert.equal(s.purpose,'key-renewal');});
 test('official confirmation handoff keeps the current transport and retry reuses the renewal',async t=>{const f=await fixture(t);f.state.handoff=true;await f.r.renew();const s=await settle(f.r,s=>s.phase==='blocked');assert.equal(s.waiting_for,'authorization');assert.equal(s.purpose,'key-renewal');assert.equal(f.calls.filter(c=>c[0]==='stop').length,0);f.state.handoff=false;await sleep(10);await f.r.resume();await settle(f.r,s=>['restoring','ready'].includes(s.phase)&&s.actions.renew);const ids=f.calls.filter(c=>c[0]==='renew').map(c=>c[1]);assert.equal(ids.length,2);assert.equal(new Set(ids).size,1);});
 test('cancel renewal preserves activation and the original saved connection',async t=>{const f=await fixture(t);f.state.handoff=true;await f.r.renew();await settle(f.r,s=>s.phase==='blocked');await f.r.cancel();const s=await settle(f.r,s=>['ready','restoring'].includes(s.phase));assert.notEqual(s.purpose,'key-renewal');const after=JSON.parse(await readFile(join(f.directory,'state.json'),'utf8'));assert.equal(after.activated,true);assert.equal(after.request_id,f.before.request_id);assert.equal(await readFile(join(f.directory,'runtime.key'),'utf8'),'old-synthetic-key');});

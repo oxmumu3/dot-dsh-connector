@@ -34,7 +34,7 @@ function inspectPlatform({tunnelName,keyName}){
   if(tunnelNameField){const description=one(all('textarea[placeholder="Add a short description to help your team."],input[placeholder="Add a short description to help your team."]',dialog));return{kind:'tunnel_draft',name:tunnelNameField.value,nameSelector:css(tunnelNameField),descriptionSelector:css(description)};}
   const keyNameField=one(all('input[placeholder="My Test Key"]',dialog));
   if(keyNameField){
-   if(keyNameField.value!==keyName)return{kind:'key_name',name:keyNameField.value,selector:css(keyNameField)};
+   if(keyNameField.value!==keyName)return{kind:'key_name',name:keyNameField.value,maxLength:keyNameField.maxLength,selector:css(keyNameField)};
    const restricted=one(exact('[role="radio"],input[type="radio"]',/^(Restricted|受限|限制)$/i,dialog));
    if(!restricted)return{kind:'changed'};
    if(restricted.getAttribute('aria-checked')!=='true'&&restricted.checked!==true)return{kind:'click',selector:css(restricted),step:'key_confirm'};
@@ -109,7 +109,8 @@ export function buildEgoPlatformPhaseScript({directory,runtimeKeyFile,tunnelName
  if(renewalId!==undefined&&(typeof renewalId!=='string'||!/^[a-f0-9]{32}$/.test(renewalId)||!/^tunnel_[A-Za-z0-9_-]{8,128}$/.test(state.tunnel_id??'')))throw invalid();
  const captureNonce=state.key_capture_nonce??randomBytes(16).toString('hex');if(!/^[a-f0-9]{32}$/.test(captureNonce))throw invalid();
  const stem=renewalId?'runtime-next-'+renewalId:'runtime';
- const input={directory,runtimeKeyFile:join(directory,stem+'.key'),metadataFile:join(directory,stem+'.json'),installationId,renewalId:renewalId??null,tunnelName,keyName:tunnelName+'-runtime'+(renewalId?'-'+renewalId:''),tunnelId:state.tunnel_id??null,tunnelIntent:state.tunnel_intent===true,keyIntent:state.key_intent===true,captureNonce:state.key_capture_nonce??null,nextCaptureNonce:captureNonce,markerName:'__dsh_ego_key_'+installationId+(renewalId?'_'+renewalId:''),recoverRejected};
+ const legacyKeyName=tunnelName+'-runtime'+(renewalId?'-'+renewalId:''),keyName=renewalId?'dsh-dot-'+installationId.slice(0,12)+'-runtime-'+renewalId:legacyKeyName;
+ const input={directory,runtimeKeyFile:join(directory,stem+'.key'),metadataFile:join(directory,stem+'.json'),installationId,renewalId:renewalId??null,tunnelName,keyName,legacyKeyName:renewalId?legacyKeyName:null,tunnelId:state.tunnel_id??null,tunnelIntent:state.tunnel_intent===true,keyIntent:state.key_intent===true,captureNonce:state.key_capture_nonce??null,nextCaptureNonce:captureNonce,markerName:'__dsh_ego_key_'+installationId+(renewalId?'_'+renewalId:''),recoverRejected};
  return `const input=${JSON.stringify(input)};
  const failure=code=>Object.assign(new Error(code),{code});
  const u=new URL(await page.url());
@@ -119,7 +120,7 @@ export function buildEgoPlatformPhaseScript({directory,runtimeKeyFile,tunnelName
   if(!input.recoverRejected)throw failure('ONBOARDING_AUTH_BROWSER_REJECTED');
   await page.goto(target);return pending('platform_login','login');
  }
- if(u.href==='about:blank'){await page.goto(target);return pending('platform_login');}
+ if(['about:blank','chrome://new-tab-page/'].includes(u.href)){await page.goto(target);return pending('platform_login');}
  if(u.origin!=='https://platform.openai.com'||u.username||u.password)return pending('platform_login','login');
  const observed=await page.evaluate(${inspectPlatform.toString()},input);
  if(observed.kind==='login')return pending('platform_login','login');
@@ -156,7 +157,11 @@ export function buildEgoPlatformPhaseScript({directory,runtimeKeyFile,tunnelName
   if(!observed.createSelector)return pending('platform_login');
   await page.click(observed.createSelector);return pending(observed.kind==='key_list'?'key_confirm':'tunnel_confirm');
  }
- if(observed.kind==='key_name'){if(observed.name||!observed.selector)throw failure('ONBOARDING_PAGE_CHANGED');await page.fill(observed.selector,input.keyName);return pending('key_confirm');}
+ if(observed.kind==='key_name'){
+  const legacyDraft=input.renewalId&&!input.keyIntent&&observed.maxLength===64&&input.legacyKeyName.length>64&&observed.name===input.legacyKeyName.slice(0,64);
+  if(observed.name&&!legacyDraft||!observed.selector)throw failure('ONBOARDING_PAGE_CHANGED');
+  await page.fill(observed.selector,input.keyName);return pending('key_confirm');
+ }
  if(observed.kind==='click'){if(!observed.selector)throw failure('ONBOARDING_PAGE_CHANGED');await page.click(observed.selector);return pending(observed.step);}
  if(observed.kind==='escape'){await page.keyboard.press('Escape');return pending('key_confirm');}
  if(observed.kind==='project_wait')return pending('key_project','project');

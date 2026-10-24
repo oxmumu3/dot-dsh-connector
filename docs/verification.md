@@ -1,6 +1,52 @@
-# 0.6.0-preview.14 — source repair candidate; preview.13 remains the verified public installation
+# 0.6.0-preview.17 — regression, build and archive accepted; public installation and live release acceptance pending
 
-Preview.13 is publicly available and has been installed through Harness's official one-sentence installation flow. Preview.14 repairs issues discovered during live follow-up verification; it has not yet passed public-download, native-installation or live-renewal acceptance. The installation instructions continue to use the verified preview.13 URL.
+Preview.17 is the next publication target. Final runtime and renewal regression passed 60/60, with zero failures or skips; independent read-only review found no additional blocker. It addresses a live status-recovery defect found after preview.16 credential renewal: the new canonical Tunnel process could be healthy enough for actual Dot work while the settings UI remained failed. The source candidate gives canonical restart a bounded cold-start health allowance, then continues read-only health probing after transient failures. Only a fresh online receipt for the current process may restore ready; stale task evidence or an earlier online state cannot do so.
+
+| Evidence layer | Current result |
+| --- | --- |
+| Canonical restart recovery | Implemented and covered by the passing runtime/renewal regression: wait for initial health after restarting with the promoted canonical key instead of immediately applying ordinary five-second supervision. Archive/source equality is verified; native installation and live UI acceptance remain pending. |
+| Transient health recovery | Implemented and covered by the passing runtime/renewal regression: continue bounded read-only health probes while the connection is temporarily unverified, allowing automatic recovery when fresh online evidence returns. No extra browser, new grant or task replay is part of recovery. Live acceptance remains pending. |
+| Readiness boundary | A restored waiting channel remains distinct from ready. Fresh online evidence is required to mark the channel ready again; historical read/task proof stays dated. |
+| Regression and package | Final preview.17 runtime/renewal suite: 60/60 passed, zero failures/skips. Independent review covered cancellation and late replies, timer registration, read-only recovery and strict online evidence. Syntax/version/license checks passed (54 files), management build passed (27 copied runtime files), and independent archive inspection passed: all 56 archive files equal the source; private-value and old-namespace checks passed. This focused result is not a fresh full-suite run; preview.13's 740-pass / 3-fail / 20-skip run and subsequent 3-pass correction remain recorded separately below. |
+| Native archive | 188639 bytes, 56 files, SHA-256 `6268e8bcb8855da22a8278cac5e8e5a091cde17d8d84e220bd53f4ce9e6df88b`. This package is built and audited, not yet publicly downloaded or installed for preview.17. |
+| Public release and download | Not yet published or verified. The preview.17 fixed URL in README/install copy is a planned post-publication address, explicitly not an available download at this checkpoint. |
+| Final live acceptance | Pending: install the final public package through the official Harness flow, verify truthful recovery status, then obtain fresh real Dot read/task completion evidence. |
+
+The accepted preview.16 local installation, credential replacement and real Dot task below remain useful historical evidence. They do not substitute for preview.17 state-recovery acceptance. A blank Mac, an empty browser profile, a new account's eligibility and generic unattended reliability remain outside the established proof scope.
+
+# Historical 0.6.0-preview.16 — local installation, renewal and real Dot accepted; settings-state recovery defect found
+
+Preview.16 is installed from the local package through Harness's official plugin interface. It includes the Ego start-page navigation repair and keeps the generated renewal key name within the official 64-character limit. Actual renewal completed through the installed provider, followed by a fresh real Dot project/README read and one completed native task. The connection settings UI nevertheless remained failed after the canonical Tunnel restart, so full status-recovery acceptance was not complete. This version was installed locally and was not publicly released; preview.17 supersedes its earlier planned publication.
+
+| Evidence layer | Current result |
+| --- | --- |
+| Native installation | All 56 installed files match archive and source. Nine other plugins / 463 files, dependency specifications, complete bundle order, three stable Harness configuration files and the original Host identity remain unchanged. This is official local-package installation, not a public one-sentence preview.16 installation. |
+| Native archive | 188470 bytes, SHA-256 `63f06ec31dc1156117e9c243cbd3ba9039b823c67f01d1eb80f107c7c7500c7a`. |
+| Actual renewal | Seventeen required preservation checks passed: the canonical runtime key changed; creation was observed during the renewal; its configured expiry is 30 days later and is not expired; the renewal committed; the saved candidate was cleaned; installation/account resources and saved verification identities were preserved; the replacement Ego-window binding completed. The expiry is derived from observed creation and selected duration, not an independently queried account expiry. |
+| Runtime configuration limitation | The original aggregate preservation receipt remains `passed:false` because its extra whole-file managed-runtime-configuration hash check differed. Follow-up analysis found the file modification preceded key creation and the preview.16 installation readback. The baseline kept only a digest, so the exact field delta cannot be reconstructed and is not claimed to be only ports. This does not erase the passing 17 renewal-specific checks or establish that the entire plugin-owned runtime configuration stayed unchanged. |
+| Final real Dot check | Accepted after renewal through installed preview.16: fresh successful project-list and exact project README reads; exactly one matching job across complete archived/unarchived lookups; uncached native succeeded/completed turn 1, finished at 2026-10-24 02:18:00.922 UTC; exact 35-byte marker file verified independently; fresh official Tunnel health online. This is bounded real read/task acceptance, not a general reliability or content-quality claim. |
+| Settings-state recovery | A real follow-up showed `CONNECTION_FAILED` despite successful key promotion and subsequent real Dot work. Canonical restart entered five-second supervision before allowing its first health poll to settle; one transient failure then stopped state recovery. This live defect is addressed by the preview.17 candidate and is not hidden by the passing read/task evidence. |
+| Public release | Not released. Earlier preview.14 public-download and preview.13/14 installation records below remain historical. Preview.17 is the next publication target. |
+
+The existing-owner fresh resource setup was accepted in preview.9, and real Google sign-in in Ego was accepted in a later run. These are separate observations, not a completely empty browser/new OpenAI account test. The isolated Ego installer accepted verified download/copy/signature/Gatekeeper with the final open intercepted; a completely blank Mac and first browser GUI setup are still outside the accepted scope.
+
+# Historical 0.6.0-preview.14 — public and installed preview; live first-screen defect found
+
+Preview.14 is publicly available and installed through Harness's official one-sentence installation flow. It repairs the prior Ego execution compatibility failure and supports exact `.` as a workspace-root alias. A subsequent live first-connection run exposed another defect: a new Ego Space starts at `chrome://new-tab-page/`, but the Platform phase recognized only `about:blank`. The plugin could therefore ask the person to log in without navigating to the official login page. This checkpoint accepts publication and installation, not full first-connection or renewal completion.
+
+| Evidence layer | Current result |
+| --- | --- |
+| Public release | Canonical repository: `oxmumu3/dot-dsh-connector`. Published [v0.6.0-preview.14](https://github.com/oxmumu3/dot-dsh-connector/releases/tag/v0.6.0-preview.14), fixed source commit `1909e5613336b80006d5a6f74a6cafab0d375449`. All three assets passed anonymous HTTP 200, byte-length and SHA-256 checks. |
+| Official installation | Actual `plugin_manager.install_bundle` returned applied, version 0.6.0-preview.14, zero warnings, exit 0 and no restart requirement. All 56 installed files match the archive and source. Nine other plugins / 463 files, dependency references, bundle order, stable configuration and original Host identity remain unchanged. |
+| Native archive | 188293 bytes, SHA-256 `ad25c17de79fc7273eef8cae6a61c834043614efa9cae5d97605d75a2debf96b`. |
+| Source archive | 925223 bytes, SHA-256 `fd26ade0baa4459673d1a84dbc5ac37b628ab1041abc4365076371d869466ee2`. The fixed source archive preserves its pre-publication checkpoint; this ledger records subsequent acceptance. |
+| Live renewal | Pending. The previous Ego execution repair is installed, but the subsequent official-page navigation defect blocks completion of the live path. New-key validation and promotion and continued operation on the existing channel are not yet accepted. |
+| Final Dot read/task | Pending for the repaired path. Preview.13's completed real project read and native task below are accepted historical results, not a substitute for a new first-connection or renewal check. |
+| Preview.15 candidate | In progress: recognize Ego's actual new-tab start page and navigate to the official account entry before asking for login. Publication, native installation and actual first-connection/renewal/Dot acceptance are not yet claimed. No preview.15 public installation link is recommended at this checkpoint. |
+
+# Historical 0.6.0-preview.13 — public installation and real Dot read/task accepted
+
+Preview.13 passed public download and official installation checks, then completed a fresh real Dot project read and one correlated native task. Its live renewal attempt exposed the Ego execution issue addressed in preview.14. These results remain version-specific.
 
 | Evidence layer | Current result |
 | --- | --- |
@@ -9,9 +55,9 @@ Preview.13 is publicly available and has been installed through Harness's offici
 | Preview.13 native package | 188225 bytes, SHA-256 `110498c4f4cdd3e18b10db0eb749318ad4764b4857fd6c283292926785c643eb`. The source ZIP is 923232 bytes, SHA-256 `7932334f22726661567483e9103a34090c3c6f79781de7a120e56d1c484a39d1`. |
 | Preview.13 regression | The full run reported 740 passed, 3 failed and 20 skipped. The three stale Ego-runtime fixtures were corrected and their targeted rerun passed 3/3. This is not a claim of an all-green full rerun; the 20 optional browser tests remain skipped. |
 | Crash and renewal checks | Supervisor tests passed 24/24; an isolated Host SIGKILL test using the actual Harness Electron executable stopped only the owned fixture child and preserved an unrelated child. The final package's JavaScript is unchanged from that tested package. Expanded renewal tests passed 12/12. These isolated checks do not establish production crash or official-account renewal acceptance. |
-| Actual connection renewal | Preview.13 reached a live Ego execution compatibility error before replacing the runtime key. The old key and original channel were retained. The preview.14 source repair addresses that execution path; actual installation, owner confirmation, candidate validation and successful key promotion remain pending. |
-| Actual Dot follow-up | A new real Dot read/task verification is in progress. No fresh completed-task receipt is claimed at this checkpoint; the accepted preview.12 results below remain historical evidence. |
-| Preview.14 root-directory reading | The candidate normalizes an exact `.` directory request to the workspace root. This does not widen file access or authorize arbitrary paths; installed acceptance remains pending. |
+| Actual connection renewal | Preview.13 reached a live Ego execution compatibility error before replacing the runtime key. The old key and original channel were retained. Preview.14 contains the repair; its separate installation and live-renewal status are recorded above. |
+| Actual Dot follow-up | Accepted through the installed preview.13 connection: a fresh successful project-list event, exactly one request-correlated native job across complete archived/unarchived lookups, uncached succeeded/completed turn 1, and the exact requested marker. Independent file readback matched the 35-byte marker plus newline, and fresh official Tunnel health was online. |
+| Root-directory compatibility finding | A real request using exact `.` exposed a root-alias compatibility issue; an empty root request worked. Preview.14 normalizes that exact alias without widening access to arbitrary paths. |
 
 The public package contains no account credentials or private acceptance identifiers. Existing-account Google login, the isolated Ego installer, fresh-connection acceptance and cold restore retain the version-specific limits recorded below. Completely fresh browser/machine setup, every new account's eligibility and generic unattended reliability are not established by these checks.
 

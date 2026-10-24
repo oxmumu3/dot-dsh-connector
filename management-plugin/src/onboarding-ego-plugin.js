@@ -105,7 +105,7 @@ async function pluginPhase(page,input,inspect){
   await page.goto('https://chatgpt.com/plugins');return pending('chatgpt_login');
  }
  const official=url.protocol==='https:'&&url.origin==='https://chatgpt.com'&&!url.username&&!url.password;
- if(!official){if(input.allowNavigate&&url.href==='about:blank'){await page.goto('https://chatgpt.com/plugins');return{status:'pending',step:'plugin_page',navigated:true};}return pending('chatgpt_login');}
+ if(!official){if(input.allowNavigate&&['about:blank','chrome://new-tab-page/'].includes(url.href)){await page.goto('https://chatgpt.com/plugins');return{status:'pending',step:'plugin_page',navigated:true};}return pending('chatgpt_login');}
  if(/^\/(?:auth|log[-_]?in|sign[-_]?in|sign[-_]?up)(?:\/|$)/i.test(url.pathname))return pending('chatgpt_login');
  if(url.pathname!=='/plugins'&&!/^\/plugins\/plugin_asdk_app_[A-Za-z0-9_-]{1,128}$/.test(url.pathname)&&!/^\/settings\/plugins-settings\/plugin_asdk_app_[A-Za-z0-9_-]{1,128}$/.test(url.pathname)){
   if(input.allowNavigate){await page.goto('https://chatgpt.com/plugins');return{status:'pending',step:'plugin_page',navigated:true};}return pending('plugin_page');
@@ -154,7 +154,7 @@ async function dotPhase(page,input,inspect){
   await page.goto('https://chatgpt.com/dots/home');return pending('chatgpt_login');
  }
  const official=url.protocol==='https:'&&url.origin==='https://chatgpt.com'&&!url.username&&!url.password;
- if(!official){if(input.mode==='verify'&&input.allowNavigate&&url.href==='about:blank'){await page.goto('https://chatgpt.com/dots/home');return{status:'pending',step:'dot_page',navigated:true};}return pending('chatgpt_login');}
+ if(!official){if(input.mode==='verify'&&input.allowNavigate&&['about:blank','chrome://new-tab-page/'].includes(url.href)){await page.goto('https://chatgpt.com/dots/home');return{status:'pending',step:'dot_page',navigated:true};}return pending('chatgpt_login');}
  if(/^\/(?:auth|log[-_]?in|sign[-_]?in|sign[-_]?up)(?:\/|$)/i.test(url.pathname))return pending('chatgpt_login');
  if(!/^\/dots(?:\/|$)/.test(url.pathname))return pending('dot_page');
  const seen=await page.evaluate(inspect,{mode:'dot',pluginName:input.pluginName,prompt:input.prompt});
