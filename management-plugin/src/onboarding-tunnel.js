@@ -3,9 +3,10 @@ import {open,lstat,realpath,unlink,rename,rm,mkdir} from 'node:fs/promises';
 import {constants} from 'node:fs';
 import {join} from 'node:path';
 import {createHash,randomBytes} from 'node:crypto';
-import {spawn,execFile as callbackExecFile} from 'node:child_process';
+import {execFile as callbackExecFile} from 'node:child_process';
 import {promisify} from 'node:util';
 import {ensurePrivateDirectory,readPrivateStateFile,writeNewPrivateStateFile,canonicalPrivatePath} from './onboarding-store.js';
+import {spawnOwnedTunnel,stopOwnedTunnel,ownedTunnelReady} from './onboarding-tunnel-supervisor.js';
 const execFile=promisify(callbackExecFile);
 const base='https://github.com/openai/tunnel-client/releases/download/v0.0.16/';
 export const OFFICIAL_TUNNEL_ARTIFACTS=Object.freeze({
@@ -106,22 +107,21 @@ export async function probeTunnelHealth({healthFile,fetchImpl=globalThis.fetch,s
  if(![200,503].includes(response.status)||data?.schema_version!==1||data?.live!==true||!Number.isFinite(snapshot)||current-snapshot>15000||snapshot-current>5000||!Number.isFinite(started)||started>snapshot||data?.runtime?.lifecycle!=='running'||typeof data.runtime.instance_id!=='string'||!/^[-A-Za-z0-9_]{1,128}$/.test(data.runtime.instance_id))throw fail('TUNNEL_HEALTH');
  return{healthy:true,ready:data.ready===true};
 }
-export function createTunnelRuntime({directory,installationId,install=installTunnel,spawnImpl=spawn,probe=probeTunnelHealth,pollMs=250,startTimeoutMs=30000}={}){
+export function createTunnelRuntime({directory,installationId,install=installTunnel,spawnImpl=spawnOwnedTunnel,probe=probeTunnelHealth,pollMs=250,startTimeoutMs=30000}={}){
  canonicalPrivatePath(directory);if(typeof installationId!=='string'||!/^[a-f0-9]{32}$/.test(installationId))throw fail('TUNNEL_PRIVATE_STATE');
  let distribution,child,closed=false,spawnFailure,exitSeen=false;const healthFile=join(directory,'health.url');
  async function close(){closed=true;const owned=child;child=undefined;if(!owned||owned.exitCode!==null||exitSeen)return;
-  await new Promise(done=>{let timer;const finish=()=>{clearTimeout(timer);owned.removeListener('exit',finish);done();};owned.once('exit',finish);owned.kill('SIGTERM');timer=setTimeout(()=>{if(owned.exitCode===null)owned.kill('SIGKILL');finish();},4000);timer.unref?.();});
+  await new Promise(done=>{let timer;const finish=()=>{clearTimeout(timer);owned.removeListener('exit',finish);done();};owned.once('exit',finish);const supervised=stopOwnedTunnel(owned);if(!supervised)owned.kill('SIGTERM');timer=setTimeout(()=>{if(!supervised&&owned.exitCode===null)owned.kill('SIGKILL');finish();},4000);timer.unref?.();});
  }
  return{healthFile,async prepare({signal}={}){if(closed)throw fail('TUNNEL_CLOSED');await ensurePrivateDirectory(directory,{create:true});distribution=await install({directory:join(directory,'tools'),signal});return{installed:true};},async start({tunnel_id,runtimeKeyFile,mcpCommand,signal}={}){
   if(closed)throw fail('TUNNEL_CLOSED');if(!/^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$/.test(tunnel_id??'')||typeof mcpCommand!=='string'||mcpCommand.length>8192||mcpCommand.includes('\0'))throw fail('TUNNEL_PRIVATE_STATE');
   await readPrivateStateFile(runtimeKeyFile,4096);if(!distribution)await this.prepare({signal});await ensurePrivateDirectory(directory);aborted(signal);
   if(child)throw fail('TUNNEL_RUNNING');const logFile=join(directory,'tunnel-'+randomBytes(8).toString('hex')+'.log');await writeNewPrivateStateFile(logFile,'');
-  try{const s=await lstat(healthFile);if(!s.isFile()||s.nlink!==1||(s.mode&0o077)!==0)throw fail('TUNNEL_PRIVATE_STATE');await readPrivateStateFile(healthFile,2048);await unlink(healthFile);}catch(e){if(e.code!=='ENOENT')throw e;}
   const args=['run','--control-plane.tunnel-id',tunnel_id,'--control-plane.api-key','file:'+runtimeKeyFile,'--mcp.command',mcpCommand,'--health.listen-addr','127.0.0.1:0','--health.url-file',healthFile,'--log.file',logFile,'--log.level','warn'];
   if(closed)throw fail('TUNNEL_CLOSED');aborted(signal);
-  child=spawnImpl(distribution.binary,args,{shell:false,windowsHide:true,stdio:['ignore','ignore','ignore'],env:environment()});child.once('error',()=>{spawnFailure=true;});child.once('exit',()=>{exitSeen=true;});
+  child=spawnImpl(distribution.binary,args,{shell:false,windowsHide:true,stdio:['ignore','ignore','ignore'],env:environment(),ownerDirectory:directory});child.once('error',()=>{spawnFailure=true;});child.once('exit',()=>{exitSeen=true;});
   const stop=()=>{void close();};signal?.addEventListener('abort',stop,{once:true});
-  try{const deadline=Date.now()+startTimeoutMs;while(Date.now()<deadline){aborted(signal);if(spawnFailure||exitSeen||child?.exitCode!==null)throw fail('TUNNEL_START');try{const health=await probe({healthFile,signal});if(health.healthy)return health;}catch(e){if(signal?.aborted)throw e;}await pause(pollMs,signal);}throw fail('TUNNEL_HEALTH');}
+  try{const deadline=Date.now()+startTimeoutMs;while(Date.now()<deadline){aborted(signal);if(spawnFailure||exitSeen||child?.exitCode!==null)throw fail('TUNNEL_START');if(ownedTunnelReady(child))try{const health=await probe({healthFile,signal});if(health.healthy)return health;}catch(e){if(signal?.aborted)throw e;}await pause(pollMs,signal);}throw fail('TUNNEL_HEALTH');}
   catch(e){await close();throw e;}finally{signal?.removeEventListener('abort',stop);}
  },close};
 }

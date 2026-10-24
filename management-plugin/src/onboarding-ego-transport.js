@@ -10,6 +10,7 @@ const MESSAGES={
  EGO_BROWSER_UNAVAILABLE:'无法打开 Ego 连接窗口，请检查 Ego 是否已安装。',
  ONBOARDING_PAGE_CHANGED:'连接页面状态无法确认，请保留窗口并继续连接。',
  ONBOARDING_EGO_CONTROL:'连接窗口正由你操作或已暂停，请回到插件继续连接。',
+ ONBOARDING_EGO_SPACE_MISSING:'原连接窗口已关闭。重新打开窗口会保留现有账号授权与任务。',
  ONBOARDING_EGO_HANDOFF:'连接窗口已交给你，请完成当前步骤后回到插件继续连接。',
  ONBOARDING_EGO_TIMEOUT:'本次窗口操作尚未确认，请先检查当前页面，再继续连接。',
  ONBOARDING_EGO_OUTPUT_LIMIT:'本次窗口操作返回过多内容，已停止自动操作。',
@@ -194,6 +195,26 @@ export function createEgoTransport({executablePath,spawnImpl=spawn,killGroupImpl
  }
  const validSpace=spaceId=>{if(!spaceIdValid(spaceId))throw error('ONBOARDING_PAGE_CHANGED');};
  return{
+  async inspectBinding({spaceId,signal,timeoutMs}={}){
+   validSpace(spaceId);
+   return invoke({prelude:'',script:`const spaces = await listTaskSpaces();
+if (!Array.isArray(spaces) || spaces.some(space => !Number.isSafeInteger(space?.id) || space.id < 1) || new Set(spaces.map(space => space.id)).size !== spaces.length) throw Object.assign(new Error('Incomplete space inventory.'), {code:'ONBOARDING_PAGE_CHANGED'});
+return {spaceId:${spaceId},found:spaces.some(space => space.id === ${spaceId})};`,signal,timeoutMs});
+  },
+  async recoverBinding({name,signal,timeoutMs}={}){
+   if(typeof name!=='string'||!name.trim()||name.length>120||/[\r\n\0]/.test(name))throw error('ONBOARDING_PAGE_CHANGED');
+   // Recover a lost creation receipt by its one persisted name, without another
+   // creation or an ownership change. Unknown or ambiguous inventories fail shut.
+   return invoke({prelude:'',script:`const spaces = await listTaskSpaces();
+if (!Array.isArray(spaces) || spaces.some(space => !Number.isSafeInteger(space?.id) || space.id < 1 || typeof space.name !== 'string') || new Set(spaces.map(space => space.id)).size !== spaces.length) throw Object.assign(new Error('Incomplete space inventory.'), {code:'ONBOARDING_PAGE_CHANGED'});
+const matches = spaces.filter(space => space.name === ${JSON.stringify(name)});
+if (matches.length === 0) return {found:false};
+if (matches.length !== 1) throw Object.assign(new Error('Ambiguous replacement space.'), {code:'ONBOARDING_PAGE_CHANGED'});
+const space = await taskSpace(matches[0].id);
+const pages = await space.pages();
+if (space.spaceId !== matches[0].id || pages.length !== 1 || !pages[0]?.label) throw Object.assign(new Error('Unexpected replacement pages.'), {code:'ONBOARDING_PAGE_CHANGED'});
+return {found:true,spaceId:space.spaceId,platformPage:pages[0].label};`,signal,timeoutMs});
+  },
   async run({spaceId,pageLabel,script,signal,timeoutMs}={}){
    validSpace(spaceId);if(!pageLabelValid(pageLabel))throw error('ONBOARDING_PAGE_CHANGED');
    return invoke({prelude:`const space = await taskSpace(${spaceId});\nconst page = space.page(${JSON.stringify(pageLabel)});`,script,signal,timeoutMs});

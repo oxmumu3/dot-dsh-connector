@@ -31,7 +31,7 @@ npm pack ./management-plugin --pack-destination ./dist
 
 当前一个已加载的原生插件只把 renderer worker 连接到一个管理器。切换到 managed 后，即使旧外部读取、管理器和 Tunnel 进程仍在运行，旧通道也不会由这个 worker 同时领取任务或回报结果；已经交给 Harness 的任务不会自动取消。切换前应确认旧通道没有待处理或运行中的任务，切换后分别核对新 Host、客户端和新执行器响应。保留旧进程不能作为两个任务通道同时可用的证据。
 
-首次明确启动成功后保存恢复意图；更新、HMR 或正常卸载时关闭自己的 listener、存储和锁，下次加载可恢复本人已启用的本地服务。明确点击「停止」会取消恢复意图。关闭服务不会自动取消已交给 Harness 的任务；任务保留其准确状态及重启后的不确定性。停用、卸载与更新默认保留 token、审计和任务记录。强制进程崩溃留下的未知锁需要操作者先核对，插件不会自行清除。
+首次明确启动成功后保存恢复意图；更新、HMR 或正常卸载时关闭自己的 listener、存储和锁，下次加载可恢复本人已启用的本地服务。明确点击「停止」会取消恢复意图。关闭服务不会自动取消已交给 Harness 的任务；任务保留其准确状态及重启后的不确定性。停用、卸载与更新默认保留 token、审计和任务记录。preview.13 使用固定内核锁保护实例；对结构、归属、文件身份都有效且两次确认原 PID 已不存在的残留锁自动恢复。活跃、未知、格式异常或非私有文件继续拒绝接管。
 
 ## 维护与已有外部连接的手动兜底
 
@@ -66,9 +66,9 @@ node /absolute/installed/dot-dsh-management/scripts/setup.mjs prepare --cloud-he
 
 ## 插件内首次连接（0.6）
 
-`manager_setup_connect_{status,start,resume,cancel,open}` 只属于 Host owner 管理通路，不暴露为 Dot 的 MCP 工具。start/resume 立即返回安全状态，后台顺序执行；取消只关闭本次取得的浏览器与子进程，不删除远端 Tunnel、私有插件、任务或密钥。外部部署只显示保留原连接，不启动替换向导。
+`manager_setup_connect_{status,start,resume,cancel,open,renew,restartkey,reopen}` 只属于 Host owner 管理通路，不暴露为 Dot 的 MCP 工具。start/resume 立即返回安全状态，后台顺序执行；取消只关闭本次取得的浏览器与子进程，不删除远端 Tunnel、私有插件、任务或密钥。外部部署只显示保留原连接，不启动替换向导。
 
-连接资料位于本插件数据目录下的独立 `onboarding` 目录（0700）。安全状态只记录资源 ID、唯一名称和请求身份；运行密钥在用户确认创建后由插件捕获，单独保存为0600文件，浏览器profile单独0700目录。向导将新密钥权限设为 Tunnels Read / Use，有效期30天；当前不会自动续期，过期或撤销后的更换仍需维护者处理。固定health.url在自有本机服务启动前登记。未知锁、未知进程或已运行服务的不同health引用不会被接管。
+连接资料位于本插件数据目录下的独立 `onboarding` 目录（0700）。安全状态只记录资源 ID、唯一名称和请求身份；运行密钥在用户确认创建后由插件捕获，单独保存为0600文件，浏览器profile单独0700目录。向导将新密钥权限设为 Tunnels Read / Use，有效期30天；preview.13 保存创建观察时间、显示预计期限并提前 7 天提醒；旧记录缺少日期时保持 unknown。用户主动 renew，插件在官方确认后将新值保存到独立 candidate，实际验证官方通道后原子替换。commit journal 在异常退出后继续收尾；取消或验证失败不提前替换旧 key。restartkey 明确放弃丢失的候选，reopen 仅在确认旧 Ego 工作空间已删除后创建替代。固定health.url在自有本机服务启动前登记。未知锁、未知进程或已运行服务的不同health引用不会被接管。Tunnel 由独立 helper 监测 Host 管道 EOF；只终止自己的直接子进程，确认退出后释放固定 guard，防止 Host SIGKILL 后遗留活跃子进程。不会扫描并清除旧版遗留进程。
 
 Playwright-core 1.64.1 提供独立可见浏览器；Tunnel v0.0.16 从官方发布下载并按固定大小和SHA256核验。插件不导入日常Chrome资料、不读取cookie、不改系统代理、不移除Gatekeeper隔离。账号登录与官方最终授权在官方页面发生。源码/合成页面测试不等于真实空白用户登录路径已验收。
 

@@ -96,18 +96,20 @@ export function armEgoKeyCapture({keyName,nonce,markerName}){
  };
  const dialogs=Array.from(document.querySelectorAll('[role="dialog"],dialog[open]')).filter(visible);if(dialogs.length!==1||!matches(dialogs[0]))return false;
  if(prior?.listener)document.removeEventListener('click',prior.listener,true);
- const checkpoint={nonce,armed:false,listener:null};checkpoint.listener=event=>{
-  if(!event.isTrusted)return;checkpoint.armed=false;
+ const checkpoint={nonce,armed:false,creationObservedAt:null,listener:null};checkpoint.listener=event=>{
+  if(!event.isTrusted)return;checkpoint.armed=false;checkpoint.creationObservedAt=null;
   const button=event.target?.closest?.('button,[role="button"]'),dialog=button?.closest('[role="dialog"],dialog[open]');
-  if(button&&/^(Create secret key|Create new secret key|创建密钥|创建新密钥)$/i.test((button.getAttribute('aria-label')??button.textContent).trim())&&matches(dialog))checkpoint.armed=true;
+  if(button&&/^(Create secret key|Create new secret key|创建密钥|创建新密钥)$/i.test((button.getAttribute('aria-label')??button.textContent).trim())&&matches(dialog)){checkpoint.armed=true;checkpoint.creationObservedAt=Date.now();}
  };
  globalThis[markerName]=checkpoint;document.addEventListener('click',checkpoint.listener,true);return true;
 }
 
-export function buildEgoPlatformPhaseScript({directory,runtimeKeyFile,tunnelName,installationId,state={},recoverRejected=false}={}){
+export function buildEgoPlatformPhaseScript({directory,runtimeKeyFile,tunnelName,installationId,state={},recoverRejected=false,renewalId}={}){
  canonicalPrivatePath(directory);canonicalPrivatePath(runtimeKeyFile);if(runtimeKeyFile!==join(directory,'runtime.key')||typeof installationId!=='string'||!/^[a-f0-9]{32}$/.test(installationId)||tunnelName!=='dsh-dot-'+installationId||typeof recoverRejected!=='boolean')throw invalid();
+ if(renewalId!==undefined&&(typeof renewalId!=='string'||!/^[a-f0-9]{32}$/.test(renewalId)||!/^tunnel_[A-Za-z0-9_-]{8,128}$/.test(state.tunnel_id??'')))throw invalid();
  const captureNonce=state.key_capture_nonce??randomBytes(16).toString('hex');if(!/^[a-f0-9]{32}$/.test(captureNonce))throw invalid();
- const input={directory,runtimeKeyFile,tunnelName,keyName:tunnelName+'-runtime',tunnelId:state.tunnel_id??null,tunnelIntent:state.tunnel_intent===true,keyIntent:state.key_intent===true,captureNonce:state.key_capture_nonce??null,nextCaptureNonce:captureNonce,markerName:'__dsh_ego_key_'+installationId,recoverRejected};
+ const stem=renewalId?'runtime-next-'+renewalId:'runtime';
+ const input={directory,runtimeKeyFile:join(directory,stem+'.key'),metadataFile:join(directory,stem+'.json'),installationId,renewalId:renewalId??null,tunnelName,keyName:tunnelName+'-runtime'+(renewalId?'-'+renewalId:''),tunnelId:state.tunnel_id??null,tunnelIntent:state.tunnel_intent===true,keyIntent:state.key_intent===true,captureNonce:state.key_capture_nonce??null,nextCaptureNonce:captureNonce,markerName:'__dsh_ego_key_'+installationId+(renewalId?'_'+renewalId:''),recoverRejected};
  return `const input=${JSON.stringify(input)};
  const failure=code=>Object.assign(new Error(code),{code});
  const u=new URL(await page.url());
@@ -133,9 +135,14 @@ export function buildEgoPlatformPhaseScript({directory,runtimeKeyFile,tunnelName
   if(!captureAllowed)throw failure('ONBOARDING_KEY_RECOVERY');
   const {ensurePrivateDirectory,writeNewPrivateStateFile}=await import(${JSON.stringify(new URL('./onboarding-store.js',import.meta.url).href)});
   await ensurePrivateDirectory(input.directory);
-  let secret=await page.evaluate(input=>{if(location.origin!=='https://platform.openai.com')return;const checkpoint=globalThis[input.markerName];if(!checkpoint?.armed||checkpoint.nonce!==input.captureNonce)return;const visible=el=>el.getClientRects().length&&getComputedStyle(el).visibility!=='hidden';const dialogs=Array.from(document.querySelectorAll('[role="dialog"],dialog[open]')).filter(visible);if(dialogs.length!==1)return;const headings=Array.from(dialogs[0].querySelectorAll('h1,h2,h3,[role="heading"]')).filter(el=>/^(Save your key|保存.*密钥|保存.*金鑰)$/i.test(el.textContent.trim()));const fields=dialogs[0].querySelectorAll('input[readonly],textarea[readonly]');if(headings.length!==1||fields.length!==1||!/^sk-[A-Za-z0-9_-]{20,1024}$/.test(fields[0].value))return;document.removeEventListener('click',checkpoint.listener,true);delete globalThis[input.markerName];return fields[0].value;},input);
-  if(typeof secret!=='string')throw failure('ONBOARDING_KEY_RECOVERY');
-  try{await writeNewPrivateStateFile(input.runtimeKeyFile,secret+'\\n');}catch(e){if(e.code==='EEXIST')throw failure('ONBOARDING_KEY_RECOVERY');throw failure('ONBOARDING_PRIVATE_STATE');}finally{secret=undefined;}
+  let captured=await page.evaluate(input=>{if(location.origin!=='https://platform.openai.com')return;const checkpoint=globalThis[input.markerName];if(!checkpoint?.armed||checkpoint.nonce!==input.captureNonce)return;const visible=el=>el.getClientRects().length&&getComputedStyle(el).visibility!=='hidden';const dialogs=Array.from(document.querySelectorAll('[role="dialog"],dialog[open]')).filter(visible);if(dialogs.length!==1)return;const headings=Array.from(dialogs[0].querySelectorAll('h1,h2,h3,[role="heading"]')).filter(el=>/^(Save your key|保存.*密钥|保存.*金鑰)$/i.test(el.textContent.trim()));const fields=dialogs[0].querySelectorAll('input[readonly],textarea[readonly]');if(headings.length!==1||fields.length!==1||!/^sk-[A-Za-z0-9_-]{20,1024}$/.test(fields[0].value))return;return{secret:fields[0].value,creationObservedAt:checkpoint.creationObservedAt??null};},input);
+  if(typeof captured?.secret!=='string')throw failure('ONBOARDING_KEY_RECOVERY');
+  const observedAt=Number.isSafeInteger(captured.creationObservedAt)&&captured.creationObservedAt>0&&captured.creationObservedAt<=Date.now()?new Date(captured.creationObservedAt).toISOString():null;
+  try{await writeNewPrivateStateFile(input.runtimeKeyFile,captured.secret+'\\n');}catch(e){if(e.code==='EEXIST')throw failure('ONBOARDING_KEY_RECOVERY');throw failure('ONBOARDING_PRIVATE_STATE');}finally{captured=undefined;}
+  // A key already saved stays recoverable if the optional local timestamp write
+  // is interrupted. Its age remains unknown; a retry must not create another key.
+  await writeNewPrivateStateFile(input.metadataFile,JSON.stringify({version:1,installation_id:input.installationId,...input.renewalId?{renewal_id:input.renewalId}:{},creation_observed_at:observedAt,lifetime_days:30,expiry_source:observedAt?'creation_observed':'unknown'})+'\\n').catch(()=>{});
+  await page.evaluate(input=>{const checkpoint=globalThis[input.markerName];if(checkpoint?.nonce===input.captureNonce){document.removeEventListener('click',checkpoint.listener,true);delete globalThis[input.markerName];}},input);
   return{status:'key_saved',key_saved:true};
  }
  if(observed.kind==='tunnel_ready'&&!input.tunnelId)return{status:'tunnel_ready',tunnel_id:observed.tunnel_id,tunnel_name:observed.tunnel_name,workspace_id:observed.workspace_id,...observed.organization_id?{organization_id:observed.organization_id}:{}};
@@ -143,6 +150,7 @@ export function buildEgoPlatformPhaseScript({directory,runtimeKeyFile,tunnelName
  if(u.href.split('?')[0]!==target){await page.goto(target);return pending(input.tunnelId?'key_confirm':'platform_login');}
  if(observed.kind==='key_exists')throw failure('ONBOARDING_KEY_RECOVERY');
  if(observed.kind==='tunnel_list'||observed.kind==='key_list'){
+  if(input.renewalId&&input.keyIntent)throw failure('ONBOARDING_KEY_RECOVERY');
   const prior=observed.kind==='tunnel_list'?input.tunnelIntent:input.keyIntent;
   if(prior&&!observed.complete)return pending(observed.kind==='key_list'?'key_confirm':'tunnel_confirm');
   if(!observed.createSelector)return pending('platform_login');

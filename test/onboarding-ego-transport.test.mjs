@@ -9,7 +9,7 @@ const regular={isFile:()=>true,isSymbolicLink:()=>false,mode:0o100755,uid:proces
 const privateText='sk-synthetic-private-secret https://auth.openai.com/log-in?code=private-oauth';
 const markerOf=script=>JSON.parse(script.match(/const __receiptMarker = ("[^\n]+?");/)[1]);
 const safeFailure=(failure,code)=>{assert.equal(failure.code,code);assert.doesNotMatch(JSON.stringify(failure)+failure.message,/synthetic-private|private-oauth|https?:|auth\.openai/);return true;};
-function fixture({execute,space,taskSpace,takeOverTaskSpace,claimTaskSpace,...options}={}){
+function fixture({execute,space,taskSpace,takeOverTaskSpace,claimTaskSpace,listTaskSpaces,...options}={}){
  const calls=[],kills=[];
  const pages=[{label:'p1'}],defaultSpace=space??{spaceId:110,page:label=>({label}),pages:async()=>pages,newPage:async()=>{const page={label:`p${pages.length+1}`,goto:async url=>{page.url=url;}};pages.push(page);return page;}};
  const spawnImpl=(command,args,spawnOptions)=>{
@@ -22,7 +22,7 @@ function fixture({execute,space,taskSpace,takeOverTaskSpace,claimTaskSpace,...op
     const output={log:(...values)=>write(values.map(String).join(' ')+'\n')};
     try{
      if(execute)await execute({child,script,write,output,space:defaultSpace});
-     else{await new AsyncFunction('taskSpace','takeOverTaskSpace','claimTaskSpace','console',script)(taskSpace??(async()=>defaultSpace),takeOverTaskSpace??(async()=>defaultSpace),claimTaskSpace??(async()=>defaultSpace),output);child.emit('close',0,null);}
+     else{await new AsyncFunction('taskSpace','takeOverTaskSpace','claimTaskSpace','listTaskSpaces','console',script)(taskSpace??(async()=>defaultSpace),takeOverTaskSpace??(async()=>defaultSpace),claimTaskSpace??(async()=>defaultSpace),listTaskSpaces??(async()=>[{id:110,name:'Owned'}]),output);child.emit('close',0,null);}
     }catch(failure){child.stderr.emit('data',Buffer.from(failure.message));child.emit('close',1,null);}
    });
   };
@@ -232,4 +232,14 @@ test('rounds cannot overlap and invalid arguments cannot start a browser command
  const controller=new AbortController();const f=fixture({execute:async()=>{}});const first=run(f.transport,{signal:controller.signal});
  await assert.rejects(run(f.transport),{code:'ONBOARDING_EGO_BUSY'});controller.abort();await assert.rejects(first,{name:'AbortError'});
  const invalid=fixture();for(const values of [{spaceId:0},{spaceId:'110);bad()'},{pageLabel:'p1;bad()'},{script:'x'.repeat(131073)},{timeoutMs:60001}])await assert.rejects(run(invalid.transport,values),{code:'ONBOARDING_PAGE_CHANGED'});assert.equal(invalid.calls.length,0);
+});
+
+test('missing-Space inventory is read only, exact, and rejects incomplete or duplicate IDs',async()=>{
+ for(const spaces of [[],[{id:110,name:'Owned'},{id:158,name:'Other'}]]){const f=fixture({listTaskSpaces:async()=>spaces,taskSpace:async()=>assert.fail('inventory must not select a Space')});assert.deepEqual(await f.transport.inspectBinding({spaceId:110}),{spaceId:110,found:spaces.length>0});assert.doesNotMatch(f.calls[0].script,/claimTaskSpace|newPage|takeOverTaskSpace/);}
+ for(const spaces of [null,{},[{name:'Missing ID'}],[{id:110},{id:110}]])await assert.rejects(fixture({listTaskSpaces:async()=>spaces}).transport.inspectBinding({spaceId:110}),{code:'ONBOARDING_PAGE_CHANGED'});
+});
+test('replacement recovery finds only one exact name and never creates or claims a Space',async()=>{
+ const selected=[],f=fixture({listTaskSpaces:async()=>[{id:158,name:'Replacement'},{id:159,name:'Other'}],taskSpace:async id=>{selected.push(id);return{spaceId:id,pages:async()=>[{label:'p1'}]};}});assert.deepEqual(await f.transport.recoverBinding({name:'Replacement'}),{found:true,spaceId:158,platformPage:'p1'});assert.deepEqual(selected,[158]);assert.doesNotMatch(f.calls[0].script,/claimTaskSpace|newPage|takeOverTaskSpace/);
+ assert.deepEqual(await f.transport.recoverBinding({name:'Absent'}),{found:false});
+ await assert.rejects(fixture({listTaskSpaces:async()=>[{id:158,name:'Replacement'},{id:159,name:'Replacement'}]}).transport.recoverBinding({name:'Replacement'}),{code:'ONBOARDING_PAGE_CHANGED'});
 });

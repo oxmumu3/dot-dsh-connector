@@ -4,15 +4,17 @@
 
 维护者：奥克斯木木山，发布命名空间 `oxmumu3`。这是独立开发的 DeepSeek Harness 原生插件，与 Harness 自带的 DSH Dot、微信项目助理分别运行。
 
-当前预览版为 `0.6.0-preview.12`：新增插件内首次连接向导，并重新设计任务工作区。已通过 Harness 官方界面安装并启用，54 个安装文件与源码及归档一致；安装后的实际 Dot 成功读取项目并完成一个关联验证任务，管理页自动显示云端在线。验收范围详见 [verification.md](docs/verification.md)。
+当前开发候选为 `0.6.0-preview.13`：增加异常退出恢复、连接授权到期提醒与自助更新。已公开的 `preview.12` 通过了原生安装及真实 Dot 读取和派任务；新版公开下载、实际升级与完整流程仍须单独验收。验收范围详见 [verification.md](docs/verification.md)。
 
 首次连接在 Ego 官方页面完成登录和确认，插件自动填写连接配置、保存专用密钥并验证真实读取和派任务。本机缺少 Ego 时，可从插件点击「安装 Ego 并继续」；下载、官方签名校验和安装由插件处理，首次浏览器设置仍由本人完成。Google 交互登录已由本人完成并实时回读已登录的 ChatGPT 页面；这不代表每个新账号都具备 Dot、Tunnel 或自定义工具权限。
 
 ## 一句话安装说明
 
-在 [v0.6.0-preview.12 发行页](https://github.com/oxmumu3/dot-dsh-connector/releases/tag/v0.6.0-preview.12) 下载 **`dot-dsh-management-0.6.0-preview.12.tgz`**，交给 DeepSeek Harness，对它说：
+在 DeepSeek Harness 新建会话，选择「创造模式」，复制下面这句话。Harness 会通过自己的插件安装工具下载并安装；如提示安装审批，按实际安装内容确认。
 
-> 请安装这个 Dot → Harness 插件，打开「Dot 连接」并点击「连接我的 Dot」，自动准备本机与账号侧配置；需要时让我登录自己的账号并确认授权。沿用我的模型、工具和审批设置，最后实际验证读取和派任务。已有连接和任务请保留。
+> 请使用插件管理工具安装并启用这个 Dot → Harness 插件：https://github.com/oxmumu3/dot-dsh-connector/releases/download/v0.6.0-preview.12/dot-dsh-management-0.6.0-preview.12.tgz 。保留已有连接、配置和任务。安装成功后告诉我打开侧栏「Dot 连接」，点击「连接我的 Dot」，按提示登录自己的账号并确认授权。
+
+安装后打开侧栏「Dot 连接」。账号配置和密钥传递由插件完成，无需下载后手动选择文件或复制密钥。以上固定入口仍指向已公开的 preview.12；preview.13 验收发布后再更新入口。
 
 普通用户只安装这一个 Harness 插件，见[安装与连接](docs/install-and-connect.md)。本仓库根包 `dot-dsh-connector` 用于开发和 MCP 配套，不作为第二个原生插件安装。首次连接从插件内发起，官方连接窗口自动填好支持的配置；本人完成登录、目标账号范围和最终授权，随后自动验证。[首次连接说明](docs/first-connection.md)。不要求另建 DeepSeek 模型 API key。正式源码仓库为 [oxmumu3/dot-dsh-connector](https://github.com/oxmumu3/dot-dsh-connector)；源码快照不等于发布回执，下载资产可用性以固定版本发行页为准。外部服务旧部署的维护说明见 [operator-runbook.md](docs/operator-runbook.md)。
 

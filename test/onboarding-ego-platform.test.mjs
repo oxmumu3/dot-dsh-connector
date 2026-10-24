@@ -1,4 +1,5 @@
 import {test} from 'node:test';import assert from 'node:assert/strict';
+import {mkdtemp,realpath,writeFile,readFile,stat,rm} from 'node:fs/promises';import {join} from 'node:path';import {tmpdir} from 'node:os';
 const api=await import('../management-plugin/src/onboarding-ego-platform.js').catch(()=>({}));
 const identity={directory:'/private/synthetic/onboarding',runtimeKeyFile:'/private/synthetic/onboarding/runtime.key',installationId:'a'.repeat(32),tunnelName:'dsh-dot-'+'a'.repeat(32),state:{}};
 const AsyncFunction=Object.getPrototypeOf(async function(){}).constructor;
@@ -77,11 +78,41 @@ test('actual capture arm accepts a labelled native radio and only the unchanged 
  const doc={querySelectorAll:()=>[dialog],addEventListener:(type,fn)=>listener=fn,removeEventListener:()=>{}};const previousDocument=globalThis.document,previousStyle=globalThis.getComputedStyle;
  const button={textContent:'Create secret key',getAttribute:()=>null,closest:selector=>selector.includes('dialog')?dialog:button};
  try{globalThis.document=doc;globalThis.getComputedStyle=()=>({visibility:'visible'});assert.equal(api.armEgoKeyCapture({keyName,nonce,markerName}),true);
-  listener({isTrusted:false,target:button});assert.equal(globalThis[markerName].armed,false);listener({isTrusted:true,target:button});assert.equal(globalThis[markerName].armed,true);
-  field.value='foreign';listener({isTrusted:true,target:button});assert.equal(globalThis[markerName].armed,false);field.value=keyName;
+  listener({isTrusted:false,target:button});assert.equal(globalThis[markerName].armed,false);assert.equal(globalThis[markerName].creationObservedAt,null);const before=Date.now();listener({isTrusted:true,target:button});assert.equal(globalThis[markerName].armed,true);assert.ok(globalThis[markerName].creationObservedAt>=before);assert.ok(globalThis[markerName].creationObservedAt<=Date.now());
+  field.value='foreign';listener({isTrusted:true,target:button});assert.equal(globalThis[markerName].armed,false);assert.equal(globalThis[markerName].creationObservedAt,null);field.value=keyName;
   expiry.value='never';listener({isTrusted:true,target:button});assert.equal(globalThis[markerName].armed,false);expiry.value='30';
   count.textContent='3 selected permissions';listener({isTrusted:true,target:button});assert.equal(globalThis[markerName].armed,false);count.textContent='2 selected permissions';
   modelControl.textContent='All selected';listener({isTrusted:true,target:button});assert.equal(globalThis[markerName].armed,false);modelControl.textContent='None';
   otherControl.textContent='All selected';listener({isTrusted:true,target:button});assert.equal(globalThis[markerName].armed,false);
  }finally{delete globalThis[markerName];if(previousDocument===undefined)delete globalThis.document;else globalThis.document=previousDocument;if(previousStyle===undefined)delete globalThis.getComputedStyle;else globalThis.getComputedStyle=previousStyle;}
+});
+
+test('renewal requires an existing tunnel and derives a unique key name and isolated candidate path',async()=>{
+ const renewalId='c'.repeat(32);assert.throws(()=>api.buildEgoPlatformPhaseScript({...identity,renewalId}),{code:'ONBOARDING_PRIVATE_STATE'});assert.throws(()=>api.buildEgoPlatformPhaseScript({...identity,renewalId:'../key',state:{tunnel_id:tunnelId}}),{code:'ONBOARDING_PRIVATE_STATE'});
+ const {actions,script}=await phase({kind:'key_name',name:'',selector:'loc=css:#name'},{renewalId,state:{tunnel_id:tunnelId},url:'https://platform.openai.com/settings/organization/api-keys'});assert.deepEqual(actions,[['fill','loc=css:#name',identity.tunnelName+'-runtime-'+renewalId]]);assert.ok(script.includes('runtime-next-'+renewalId+'.key'));
+});
+test('renewal cannot create a tunnel from a stale tunnel page',async()=>{
+ const renewalId='c'.repeat(32);await assert.rejects(phase({kind:'tunnel_draft',name:identity.tunnelName},{renewalId,state:{tunnel_id:tunnelId}}),{code:'ONBOARDING_PAGE_CHANGED'});
+ const {actions}=await phase({kind:'tunnel_list',complete:true,createSelector:'loc=css:#create-tunnel'},{renewalId,state:{tunnel_id:tunnelId}});assert.deepEqual(actions,[['goto','https://platform.openai.com/settings/organization/api-keys']]);
+});
+
+async function actualSavePhase({renewalId,foreignNonce=false,observedAt=Date.now()-1000}={}){
+ const directory=await realpath(await mkdtemp(join(tmpdir(),'dsh-synthetic-key-capture-'))),runtimeKeyFile=join(directory,'runtime.key'),nonce='d'.repeat(32),markerName='__dsh_ego_key_'+identity.installationId+(renewalId?'_'+renewalId:'');
+ const original='sk-'+ 'o'.repeat(32),candidate='sk-'+ 'n'.repeat(32);if(renewalId)await writeFile(runtimeKeyFile,original+'\n',{mode:0o600});
+ const dialog={getClientRects:()=>[{}],querySelectorAll:selector=>selector.startsWith('h1')?[{textContent:'Save your key'}]:selector.startsWith('input[readonly]')?[{value:candidate}]:[]};
+ const previous={document:globalThis.document,location:globalThis.location,getComputedStyle:globalThis.getComputedStyle};
+ globalThis.document={querySelectorAll:()=>[dialog],removeEventListener:()=>{}};globalThis.location={origin:'https://platform.openai.com'};globalThis.getComputedStyle=()=>({visibility:'visible'});globalThis[markerName]={nonce:foreignNonce?'e'.repeat(32):nonce,armed:true,creationObservedAt:observedAt,listener:()=>{}};
+ const page={url:async()=> 'https://platform.openai.com/settings/organization/api-keys',evaluate:async(fn,input)=>fn.name==='inspectPlatform'?{kind:'key_saved_dialog'}:fn(input)};
+ try{const script=api.buildEgoPlatformPhaseScript({...identity,directory,runtimeKeyFile,renewalId,state:{tunnel_id:tunnelId,key_intent:true,key_capture_nonce:nonce}}),result=await new AsyncFunction('page',script)(page);const stem=renewalId?'runtime-next-'+renewalId:'runtime';return{result,key:await readFile(join(directory,stem+'.key'),'utf8'),metadata:JSON.parse(await readFile(join(directory,stem+'.json'),'utf8')),mode:(await stat(join(directory,stem+'.key'))).mode&0o777,original:renewalId?await readFile(runtimeKeyFile,'utf8'):undefined,observedAt,script};}
+ finally{delete globalThis[markerName];for(const[k,v]of Object.entries(previous)){if(v===undefined)delete globalThis[k];else globalThis[k]=v;}await rm(directory,{recursive:true,force:true});}
+}
+test('actual renewal capture writes only its private candidate and trusted-click metadata',async()=>{
+ const renewalId='c'.repeat(32),r=await actualSavePhase({renewalId});assert.deepEqual(r.result,{status:'key_saved',key_saved:true});assert.equal(r.original,'sk-'+ 'o'.repeat(32)+'\n');assert.equal(r.key,'sk-'+ 'n'.repeat(32)+'\n');assert.equal(r.mode,0o600);assert.deepEqual(r.metadata,{version:1,installation_id:identity.installationId,renewal_id:renewalId,creation_observed_at:new Date(r.observedAt).toISOString(),lifetime_days:30,expiry_source:'creation_observed'});assert.doesNotMatch(JSON.stringify(r.result),/sk-|2026/);
+});
+test('initial capture records the same metadata; foreign nonce cannot capture a renewal',async()=>{
+ const r=await actualSavePhase();assert.equal(r.metadata.creation_observed_at,new Date(r.observedAt).toISOString());assert.equal(r.metadata.renewal_id,undefined);await assert.rejects(actualSavePhase({renewalId:'c'.repeat(32),foreignNonce:true}),{code:'ONBOARDING_KEY_RECOVERY'});
+});
+
+test('a renewal whose grant outcome is unknown cannot open another create form from the key list',async()=>{
+ const renewalId='c'.repeat(32);await assert.rejects(phase({kind:'key_list',complete:true,createSelector:'loc=css:#create'},{renewalId,state:{tunnel_id:tunnelId,key_intent:true,key_capture_nonce:'d'.repeat(32)},url:'https://platform.openai.com/settings/organization/api-keys'}),{code:'ONBOARDING_KEY_RECOVERY'});
 });

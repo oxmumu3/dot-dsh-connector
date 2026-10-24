@@ -294,9 +294,54 @@ test('external deployments keep their current connection and offer no replacemen
 
 test('first connection remote descriptors accept only empty owner setup inputs',()=>{
  const methods=createManagementRemote(z).methods;
- for(const operation of ['Status','Start','Resume','Cancel','Open']){
+ for(const operation of ['Status','Start','Resume','Cancel','Open','Renew','RestartKey','Reopen']){
   const entry=methods['setupConnect'+operation];assert.ok(entry,operation);assert.equal(entry.tool,'manager_setup_connect_'+operation.toLowerCase());assert.equal(entry.schema.safeParse({}).success,true);assert.equal(entry.schema.safeParse({url:'https://example.test',token:'not allowed'}).success,false);
  }
+});
+
+test('recreating authorization is offered only by the recovery capability and never starts first connection',async t=>{
+ let offered=false,supportedAction=true,workspaceChecks=0;const calls=[];
+ const state=()=>connectView('blocked',{purpose:'key-renewal',error:{code:'ONBOARDING_KEY_RECOVERY'},actions:{restart_key:offered,cancel:true}});
+ const tree=await mount(t,{supports:tool=>tool!=='manager_setup_connect_restartkey'||supportedAction,ensureWorkspace:async()=>{workspaceChecks++;return true;},async call(tool){calls.push(tool);if(tool==='manager_overview')return cloudOverview(Date.now());if(tool==='manager_jobs')return pages([]);if(tool==='manager_setup_status')return managedSetup(state());if(tool==='manager_setup_connect_restartkey')return connectView('authorize',{purpose:'key-renewal',actions:{cancel:true},message:'请在官方页面确认新的授权。'});throw Error(tool);}});
+ assert.equal(button(tree,'重新创建授权'),undefined);offered=true;supportedAction=false;await act(async()=>button(tree,'刷新').props.onClick());assert.equal(button(tree,'重新创建授权'),undefined);
+ supportedAction=true;await act(async()=>button(tree,'刷新').props.onClick());const restart=button(tree,'重新创建授权');assert.ok(restart);await act(async()=>{void restart.props.onClick();void restart.props.onClick();});assert.equal(calls.filter(x=>x==='manager_setup_connect_restartkey').length,1);assert.equal(workspaceChecks,0);assert.equal(calls.includes('manager_setup_connect_start'),false);assert.equal(button(tree,'连接我的 Dot'),undefined);assert.match(text(tree.toJSON()),/确认新的授权/);
+});
+
+test('a missing connection window offers only explicit reopen and sends the scoped recovery action',async t=>{
+ let offered=false,supportedAction=true,workspaceChecks=0;const calls=[];
+ const state=()=>connectView('blocked',{purpose:'key-renewal',error:{code:'ONBOARDING_EGO_SPACE_MISSING'},actions:{reopen:offered,resume:true,open:true,cancel:true}});
+ const tree=await mount(t,{supports:tool=>tool!=='manager_setup_connect_reopen'||supportedAction,ensureWorkspace:async()=>{workspaceChecks++;return true;},async call(tool){calls.push(tool);if(tool==='manager_overview')return cloudOverview(Date.now());if(tool==='manager_jobs')return pages([]);if(tool==='manager_setup_status')return managedSetup(state());if(tool==='manager_setup_connect_reopen')return connectView('authorize',{purpose:'key-renewal',actions:{resume:true,cancel:true,open:true},message:'连接窗口已重新打开，请完成官方确认。'});throw Error(tool);}});
+ assert.equal(button(tree,'重新打开连接窗口'),undefined);offered=true;supportedAction=false;await act(async()=>button(tree,'刷新').props.onClick());assert.equal(button(tree,'重新打开连接窗口'),undefined);
+ supportedAction=true;await act(async()=>button(tree,'刷新').props.onClick());assert.equal(Boolean(button(tree,'继续更新')),false);assert.equal(Boolean(button(tree,'打开连接窗口')),false);
+ const reopen=button(tree,'重新打开连接窗口');assert.ok(reopen);assert.match(reopen.props.className,/dm-primary/);await act(async()=>reopen.props.onClick());assert.equal(calls.filter(x=>x==='manager_setup_connect_reopen').length,1);assert.equal(workspaceChecks,0);assert.equal(calls.includes('manager_setup_connect_start'),false);assert.equal(calls.includes('manager_setup_connect_resume'),false);assert.equal(button(tree,'连接我的 Dot'),undefined);assert.match(text(tree.toJSON()),/重新打开，请完成官方确认/);
+});
+
+test('credential settings show unknown expiry without inventing a date and require renewal capability',async t=>{
+ const state=connectView('ready',{credential:{state:'unknown',expiry_source:'unknown',renewal_pending:false},actions:{renew:true},verification:{tunnel_online:true,chatgpt_connected:true,dot_read:true,task_complete:true}});
+ let allowed=false;const calls=[];
+ const tree=await mount(t,{supports:tool=>tool!=='manager_setup_connect_renew'||allowed,async call(tool){calls.push(tool);if(tool==='manager_overview')return cloudOverview(Date.now());if(tool==='manager_jobs')return pages([]);if(tool==='manager_setup_status')return managedSetup(state);throw Error(tool);}});
+ await act(async()=>button(tree,'连接设置').props.onClick());assert.match(text(tree.toJSON()),/有效期未记录/);assert.doesNotMatch(text(tree.toJSON()),/预计到期|天后到期/);assert.equal(button(tree,'更新连接授权'),undefined);
+ allowed=true;await act(async()=>button(tree,'刷新').props.onClick());assert.ok(button(tree,'更新连接授权'));assert.equal(calls.includes('manager_setup_connect_renew'),false);
+});
+
+test('expiring authorization offers one renewal action and renewal continuation keeps the old connection intact',async t=>{
+ let state=connectView('ready',{credential:{state:'expiring',expiry_source:'estimated',expires_at:'2026-11-01T12:00:00Z',days_remaining:3,renewal_pending:false},actions:{renew:true,resume:true},verification:{tunnel_online:true,chatgpt_connected:true,dot_read:true,task_complete:true}});
+ const calls=[],pending=Promise.withResolvers();let workspaceChecks=0;
+ const tree=await mount(t,{supports:()=>true,ensureWorkspace:async()=>{workspaceChecks++;return true;},async call(tool){calls.push(tool);if(tool==='manager_overview')return cloudOverview(Date.now());if(tool==='manager_jobs')return pages([]);if(tool==='manager_setup_status')return managedSetup(state);if(tool==='manager_setup_connect_renew'){await pending.promise;return state=connectView('blocked',{purpose:'key-renewal',message:'请在官方页面确认更新。',waiting_for:'authorization',credential:{state:'expiring',expiry_source:'estimated',days_remaining:3,renewal_pending:true},actions:{renew:false,resume:true,cancel:true,open:true},error:{code:'ONBOARDING_EGO_HANDOFF'}});}if(tool==='manager_setup_connect_resume')return state;if(tool==='manager_setup_connect_cancel')return state=connectView('ready',{message:'已暂缓更新，原连接保留。',credential:{state:'expiring',expiry_source:'estimated',days_remaining:3,renewal_pending:true},actions:{renew:true},verification:{tunnel_online:true,chatgpt_connected:true,dot_read:true,task_complete:true}});throw Error(tool);}});
+ assert.match(text(tree.toJSON()),/连接授权预计 3 天后到期/);const renew=button(tree,'更新连接授权');assert.ok(renew);
+ await act(async()=>{void renew.props.onClick();void renew.props.onClick();});assert.equal(calls.filter(x=>x==='manager_setup_connect_renew').length,1);assert.equal(renew.props.disabled,true);
+ await act(async()=>pending.resolve());assert.ok(button(tree,'继续更新'));assert.ok(button(tree,'暂不更新'));assert.equal(button(tree,'更新连接授权'),undefined);assert.equal(button(tree,'取消本次连接'),undefined);assert.doesNotMatch(text(tree.toJSON()),/首次连接后|连接一次，之后/);
+ await act(async()=>button(tree,'继续更新').props.onClick());assert.equal(workspaceChecks,0);assert.equal(calls.filter(x=>x==='manager_setup_connect_resume').length,1);
+ await act(async()=>button(tree,'暂不更新').props.onClick());assert.equal(calls.filter(x=>x==='manager_setup_connect_cancel').length,1);assert.equal(calls.includes('manager_setup_stop'),false);assert.equal(calls.includes('manager_set_paused'),false);assert.match(text(tree.toJSON()),/连接验证已完成/);
+});
+
+test('expired credentials warn while valid credentials stay quiet and unsupported hosts never offer renewal',async t=>{
+ let state=connectView('ready',{credential:{state:'valid',expiry_source:'estimated',expires_at:'2026-11-22T12:00:00Z',days_remaining:30,renewal_pending:false},actions:{renew:true},verification:{tunnel_online:true,chatgpt_connected:true,dot_read:true,task_complete:true}});
+ const tree=await mount(t,{supports:()=>true,async call(tool){if(tool==='manager_overview')return cloudOverview(Date.now());if(tool==='manager_jobs')return pages([]);if(tool==='manager_setup_status')return managedSetup(state);throw Error(tool);}});
+ assert.equal(button(tree,'更新连接授权'),undefined);assert.doesNotMatch(text(tree.toJSON()),/授权预计已到期|授权即将到期/);
+ await act(async()=>button(tree,'连接设置').props.onClick());assert.match(text(tree.toJSON()),/预计到期/);assert.ok(button(tree,'更新连接授权'));
+ state={...state,credential:{state:'expired',expiry_source:'estimated',expires_at:'2026-10-01T12:00:00Z',days_remaining:0,renewal_pending:false}};await act(async()=>button(tree,'总览').props.onClick());assert.match(text(tree.toJSON()),/连接授权预计已到期/);assert.ok(button(tree,'更新连接授权'));
+ state={...state,credential:undefined,actions:{}};await act(async()=>button(tree,'连接设置').props.onClick());assert.equal(button(tree,'更新连接授权'),undefined);assert.doesNotMatch(text(tree.toJSON()),/预计到期/);
 });
 
 test('tab keyboard navigation follows the selected panel and retains visible focus',async t=>{

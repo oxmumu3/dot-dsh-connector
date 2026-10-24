@@ -1,10 +1,11 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {mkdtemp,realpath,mkdir,rm,readFile,writeFile,stat,chmod,symlink,access} from 'node:fs/promises';
+import {mkdtemp,realpath,mkdir,rm,readFile,writeFile,stat,chmod,symlink,link,access} from 'node:fs/promises';
 import {join} from 'node:path';
 import {tmpdir} from 'node:os';
 import {createServer} from 'node:net';
-import {execFile} from 'node:child_process';
+import {execFile,spawn} from 'node:child_process';
+import {once} from 'node:events';
 import {fileURLToPath} from 'node:url';
 const setup=await import('../management-plugin/src/setup-runtime.js').catch(()=>({}));
 async function fixture(t){
@@ -18,6 +19,47 @@ function ownedServices(){let starts=0,closes=0;return{get starts(){return starts
 function runtime(options,extra={}){assert.equal(typeof setup.createManagedRuntime,'function');return setup.createManagedRuntime({...options,preflight:supported,checkPorts:async()=>{},...extra});}
 async function listen(port){const server=createServer();await new Promise((done,reject)=>{server.once('error',reject);server.listen(port,'127.0.0.1',done);});return{port:server.address().port,close:()=>new Promise(done=>server.close(done))};}
 function actualListeners(){return{launchRead:async({config})=>{const r=await listen(config.port);return{url:`http://127.0.0.1:${r.port}/rpc`,close:r.close};},launchManager:async({config})=>{const resources=[];try{for(const key of ['gatewayPort','adminPort','workerPort'])resources.push(await listen(config[key]));return{gatewayUrl:`http://127.0.0.1:${resources[0].port}/rpc`,adminUrl:`http://127.0.0.1:${resources[1].port}/rpc`,nativeWorkerUrl:`http://127.0.0.1:${resources[2].port}`,close:()=>Promise.all(resources.map(r=>r.close()))};}catch(error){await Promise.all(resources.map(r=>r.close()));throw error;}}};}
+test('an actual crashed runtime releases its kernel guard and resumes its exact stale owner record',async t=>{
+ if(process.platform!=='darwin')return t.skip('Darwin kernel owner lock');
+ const f=await fixture(t),script=`import {createServer} from 'node:net';import {createManagedRuntime} from ${JSON.stringify(new URL('../management-plugin/src/setup-runtime.js',import.meta.url).href)};const listen=${listen.toString()};const actualListeners=${actualListeners.toString()};const runtime=createManagedRuntime({...${JSON.stringify(f)},preflight:async()=>[{id:'synthetic',ok:true,message:'synthetic'}],...actualListeners()});const value=await runtime.start();process.send({phase:value.phase});setInterval(()=>{},1000);`;
+ const child=spawn(process.execPath,['--input-type=module','-e',script],{stdio:['ignore','ignore','pipe','ipc']});let diagnostics='';child.stderr.on('data',data=>{diagnostics=(diagnostics+data).slice(-4096);});
+ t.after(()=>{if(child.exitCode===null&&child.signalCode===null)child.kill('SIGKILL');});
+ const message=await new Promise((resolve,reject)=>{const timer=setTimeout(()=>reject(Error('Synthetic child startup timeout: '+diagnostics)),30000);child.once('message',value=>{clearTimeout(timer);resolve(value);});child.once('exit',code=>{clearTimeout(timer);reject(Error('Synthetic child exited '+code+': '+diagnostics));});child.once('error',error=>{clearTimeout(timer);reject(error);});});assert.equal(message.phase,'running');
+ const original=JSON.parse(await readFile(join(f.dataDir,'config.json'),'utf8')),key=await readFile(join(f.dataDir,'channel.key'),'utf8');
+ const successor=runtime(f,{...actualListeners(),checkPorts:undefined});t.after(()=>successor.close());assert.equal((await successor.status()).error.code,'STATE_LOCKED');
+ const exited=once(child,'exit');child.kill('SIGKILL');await exited;
+ const stale=JSON.parse(await readFile(join(f.dataDir,'runtime.lock'),'utf8'));assert.equal(stale.pid,child.pid);
+ assert.equal((await successor.status()).phase,'prepared');assert.equal((await successor.resume()).phase,'running');
+ assert.equal(JSON.parse(await readFile(join(f.dataDir,'config.json'),'utf8')).principal,original.principal);assert.equal(await readFile(join(f.dataDir,'channel.key'),'utf8'),key);
+ assert.notEqual(JSON.parse(await readFile(join(f.dataDir,'runtime.lock'),'utf8')).pid,child.pid);
+ const guard=await stat(join(f.dataDir,'runtime.guard'));await successor.close();assert.equal((await stat(join(f.dataDir,'runtime.guard'))).ino,guard.ino);await assert.rejects(access(join(f.dataDir,'runtime.lock')));
+});
+test('runtime stale recovery refuses live owners, malformed owner fields and linked lock files unchanged',async t=>{
+ if(process.platform!=='darwin')return t.skip('Darwin kernel owner lock');
+ const dead=spawn(process.execPath,['-e','process.exit(0)'],{stdio:'ignore'});await once(dead,'exit');
+ const base={instance:'a'.repeat(32),pid:dead.pid,started_at:'2026-01-01T00:00:00.000Z'};
+ for(const [name,value,kind]of [['live',{...base,pid:process.pid}],['array-instance',{...base,instance:['a'.repeat(32)]}],['extra',{...base,extra:true}],['bad-time',{...base,started_at:'yesterday'}],['missing-time',{instance:base.instance,pid:base.pid}],['linked',base,'symlink'],['hard-linked',base,'hardlink']])await t.test(name,async t=>{
+  const f=await fixture(t),services=ownedServices(),r=runtime(f,services);t.after(()=>r.close());await r.prepare();
+  const file=join(f.dataDir,'runtime.lock'),content=JSON.stringify(value),target=join(f.base,'foreign-lock');
+  if(kind){await writeFile(target,content,{mode:0o600});if(kind==='symlink')await symlink(target,file);else await link(target,file);}else await writeFile(file,content,{mode:0o600});
+  assert.equal((await r.resume()).error.code,'STATE_LOCKED');assert.equal((await r.start()).error.code,'STATE_LOCKED');assert.equal(services.starts,0);assert.equal(await readFile(file,'utf8'),content);
+ });
+});
+test('runtime guard paths are never repaired, followed or replaced',async t=>{
+ if(process.platform!=='darwin')return t.skip('Darwin kernel owner lock');
+ for(const kind of ['symlink','hardlink','permissive'])await t.test(kind,async t=>{
+  const f=await fixture(t),services=ownedServices();await mkdir(f.dataDir,{mode:0o700});const target=join(f.base,'foreign-guard'),file=join(f.dataDir,'runtime.guard');await writeFile(target,'foreign',{mode:0o600});
+  if(kind==='symlink')await symlink(target,file);else if(kind==='hardlink')await link(target,file);else await writeFile(file,'foreign',{mode:0o644});
+  const r=runtime(f,services);t.after(()=>r.close());assert.equal((await r.start()).error.code,'STATE_LOCKED');assert.equal(services.starts,0);assert.equal(await readFile(file,'utf8'),'foreign');assert.equal(await readFile(target,'utf8'),'foreign');await assert.rejects(access(join(f.dataDir,'config.json')));
+ });
+});
+test('failed private configuration preparation releases its kernel ownership for a later valid attempt',async t=>{
+ if(process.platform!=='darwin')return t.skip('Darwin kernel owner lock');
+ const f=await fixture(t),one=runtime(f,ownedServices());t.after(()=>one.close());assert.equal((await one.prepare()).phase,'prepared');
+ const path=join(f.dataDir,'config.json'),original=await readFile(path,'utf8'),guard=await stat(join(f.dataDir,'runtime.guard'));await writeFile(path,'invalid',{mode:0o600});
+ assert.equal((await one.prepare()).phase,'blocked');await assert.rejects(access(join(f.dataDir,'runtime.lock')));await writeFile(path,original,{mode:0o600});
+ const two=runtime(f,ownedServices());t.after(()=>two.close());assert.equal((await two.start()).phase,'running');assert.equal((await stat(join(f.dataDir,'runtime.guard'))).ino,guard.ino);assert.equal((await one.start()).error.code,'STATE_LOCKED');assert.equal((await two.status()).phase,'running');
+});
 test('default managed setup atomically allocates ports and resumes even after a previous port is taken',async t=>{
  const f=await fixture(t),one=runtime(f,{...actualListeners(),checkPorts:undefined});t.after(()=>one.close());await one.prepare();
  const initial=JSON.parse(await readFile(join(f.dataDir,'config.json'),'utf8'));assert.equal(initial.automaticPorts,true);assert.deepEqual(initial.ports,{reader:0,gateway:0,admin:0,worker:0});

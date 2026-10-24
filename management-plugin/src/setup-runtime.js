@@ -15,7 +15,7 @@ const DEFAULT_PORTS={reader:0,gateway:0,admin:0,worker:0};
 const directory=z.string().refine(v=>isAbsolute(v)&&resolve(v)===v&&!v.includes('\0')&&!v.includes('\\'));
 const ports=z.strictObject(Object.fromEntries(Object.keys(DEFAULT_PORTS).map(k=>[k,z.number().int().min(0).max(65535)])));
 const configSchema=z.strictObject({version:z.literal(1),dshHome:directory,dataDir:directory,principal:z.string().regex(/^owner-[a-f0-9]{32}$/),ports,automaticPorts:z.boolean().default(false),requestedPorts:ports.optional(),activated:z.boolean().default(false),cloudHealthFile:directory.optional()});
-const MESSAGES={MCP_ENTRY_UNAVAILABLE:'本机 MCP 入口无法使用当前 Harness 的 Node 启动。请检查本机运行环境后重试。',UNSUPPORTED_RUNTIME:'当前仅支持 macOS、Harness 0.2.1-rc.2、Node 22.15+ 和 Python 3.10+。',PROFILE_UNAVAILABLE:'未发现当前 Harness Desktop profile。请先完成 Harness 首次启动。',PRIVATE_STATE_REQUIRED:'连接器状态或凭据目录不是本人私有的规范路径。请检查诊断，不会自动修复或接管。',STATE_LOCKED:'此状态目录已有运行锁。请先核对并停止原实例，再重新准备；不会自动清除或接管。',SETUP_RUNNING:'请先停止本插件拥有的本机服务，再准备新的云端状态文件引用。',PORT_IN_USE:'连接器端口已被占用。现有外部部署请保留 tokenFile 模式；不会结束或接管该进程。',SETUP_REQUIRED:'请先准备本地连接。',LOCAL_START_FAILED:'本地服务启动失败；已关闭本次取得的资源。请检查运行环境和诊断。',CLOSED:'插件已关闭。请重新启用插件。'};
+const MESSAGES={MCP_ENTRY_UNAVAILABLE:'本机 MCP 入口无法使用当前 Harness 的 Node 启动。请检查本机运行环境后重试。',UNSUPPORTED_RUNTIME:'当前仅支持 macOS、Harness 0.2.1-rc.2、Node 22.15+ 和 Python 3.10+。',PROFILE_UNAVAILABLE:'未发现当前 Harness Desktop profile。请先完成 Harness 首次启动。',PRIVATE_STATE_REQUIRED:'连接器状态或凭据目录不是本人私有的规范路径。请检查诊断，不会自动修复或接管。',STATE_LOCKED:'此状态目录仍被占用，或锁信息无法核实。请检查原实例；不会接管活跃进程或异常锁。',SETUP_RUNNING:'请先停止本插件拥有的本机服务，再准备新的云端状态文件引用。',PORT_IN_USE:'连接器端口已被占用。现有外部部署请保留 tokenFile 模式；不会结束或接管该进程。',SETUP_REQUIRED:'请先准备本地连接。',LOCAL_START_FAILED:'本地服务启动失败；已关闭本次取得的资源。请检查运行环境和诊断。',CLOSED:'插件已关闭。请重新启用插件。'};
 const failure=code=>Object.assign(new Error(MESSAGES[code]??MESSAGES.LOCAL_START_FAILED),{code});
 const safeError=error=>({code:Object.hasOwn(MESSAGES,error?.code)?error.code:'LOCAL_START_FAILED',message:MESSAGES[error?.code]??MESSAGES.LOCAL_START_FAILED});
 const uid=()=>typeof process.getuid==='function'?process.getuid():undefined;
@@ -95,35 +95,74 @@ export function createManagedRuntime({dshHome:requestedHome,dataDir:requestedDat
  const mcpEntry=()=>managedMcpEntry({dataDir,executable:nodeExecutable,electron:nodeElectron,env});
  const expanded=requestedHome??(env.DSH_HOME?.trim()||join(home,'.dsh'));
  const dshHome=resolve(expanded==='~'?home:expanded.startsWith('~/')?join(home,expanded.slice(2)):expanded),dataDir=requestedData??join(dshHome,'dot-dsh-connector');
- let config,reader,manager,lock,lockIdentity,foreignLock=false,closed=false,running=false,phase='setup_required',lastError,checks=[],pending=Promise.resolve();
+ let config,reader,manager,lock,lockIdentity,guard,guardIdentity,foreignLock=false,closed=false,running=false,phase='setup_required',lastError,checks=[],pending=Promise.resolve();
+ const lockPath=join(dataDir,'runtime.lock'),guardPath=join(dataDir,'runtime.guard');
+ const same=(left,right)=>left&&right&&left.dev===right.dev&&left.ino===right.ino;
+ const privateLock=info=>info?.isFile()&&info.nlink===1&&(info.mode&0o077)===0&&(uid()===undefined||info.uid===uid());
  const serial=fn=>{const result=pending.then(fn);pending=result.catch(()=>{});return result;};
  const assertOpen=()=>{if(closed)throw failure('CLOSED');};
  const response=()=>({mode:'managed',phase,last_checked_at:new Date().toISOString(),supported:SUPPORTED,checks,services:{reader:reader?'running':foreignLock?'unknown':'stopped',manager:manager?'running':foreignLock?'unknown':'stopped',tunnel:'external_setup_required'},account:{state:'unverified',message:'本地就绪不表示 Dot 已连接。请在官方账号界面完成本人私有 Tunnel 与插件授权，并用实际 Dot 调用验证。'},actions:{prepare:!closed&&!running,start:!closed&&!running&&!lastError&&Boolean(config)&&checks.every(c=>c.ok),stop:!closed&&running},scope:{reads:'读取本人已保存的项目、会话与允许的文件；不会唤醒已有会话。',execution:'仅执行本人派发的新任务，沿用 Harness 模型、工具与审批。'},handoff:{steps:['在目标 OpenAI workspace 的官方界面确认私有插件 / 自定义 MCP 与 Secure MCP Tunnel 权限。','按官方 Tunnel CLI 的当前帮助，将下方命令设为 stdio 服务；运行密钥由官方流程保管，不交给本插件。','在 Dot 官方界面关联本人私有 Tunnel 并授权工具。用实际读取、派任务及结果回读分别确认。','插件停止或升级会关闭本地监听器；已交给 Harness 的任务不会自动取消。'],...(config?{command:mcpEntry().mcpCommand}:{})},...(lastError?{error:lastError}:{})});
- async function ensureOwnership(){
+ async function guarded(){
+  if(process.platform!=='darwin')return;
+  await privateDirectory(dataDir);const current=await lstat(guardPath);
+  if(!guard||!privateLock(current)||!same(current,guardIdentity))throw failure('STATE_LOCKED');
+ }
+ async function releaseGuard(){await guard?.close();guard=undefined;guardIdentity=undefined;}
+ async function acquireGuard(){
+  if(process.platform!=='darwin')return;if(guard)return guarded();
+  await privateDirectory(dataDir);
+  // Darwin O_EXLOCK is acquired atomically by open. Keep this inode forever:
+  // unlinking it would allow two processes to hold different kernel locks.
+  try{guard=await open(guardPath,constants.O_RDWR|constants.O_CREAT|constants.O_NOFOLLOW|constants.O_NONBLOCK|0x20,0o600);guardIdentity=await guard.stat();await guarded();}
+  catch{await releaseGuard();foreignLock=true;throw failure('STATE_LOCKED');}
+ }
+ async function reclaimDeadLock(){
+  let before;try{before=await lstat(lockPath);}catch(e){if(e.code==='ENOENT')return;throw e;}
+  if(process.platform!=='darwin'||!guard)throw failure('STATE_LOCKED');
   try{
-   const current=await lstat(join(dataDir,'runtime.lock'));
-   if(lock&&lockIdentity&&current.isFile()&&current.nlink===1&&current.dev===lockIdentity.dev&&current.ino===lockIdentity.ino){foreignLock=false;return;}
-   foreignLock=true;throw failure('STATE_LOCKED');
-  }catch(error){if(error.code==='ENOENT'&&!lock){foreignLock=false;return;}if(error.code==='ENOENT'){foreignLock=true;throw failure('STATE_LOCKED');}throw error;}
+   await guarded();if(!privateLock(before))throw failure('STATE_LOCKED');
+   const owner=JSON.parse(await readPrivateFile(lockPath,4096));
+   if(!owner||Object.getPrototypeOf(owner)!==Object.prototype||Object.keys(owner).sort().join(',')!=='instance,pid,started_at'||typeof owner.instance!=='string'||!/^[a-f0-9]{32}$/.test(owner.instance)||!Number.isSafeInteger(owner.pid)||owner.pid<1||owner.pid>2147483647||typeof owner.started_at!=='string'||!Number.isFinite(Date.parse(owner.started_at))||new Date(owner.started_at).toISOString()!==owner.started_at)throw failure('STATE_LOCKED');
+   const dead=()=>{try{process.kill(owner.pid,0);return false;}catch(e){return e.code==='ESRCH';}};
+   if(!dead())throw failure('STATE_LOCKED');
+   await guarded();const current=await lstat(lockPath);if(!same(before,current)||!privateLock(current)||!dead())throw failure('STATE_LOCKED');
+   await unlink(lockPath);
+  }catch{foreignLock=true;throw failure('STATE_LOCKED');}
+ }
+ async function ensureOwnership(){
+  if(lock){
+   try{await guarded();const current=await lstat(lockPath);if(!privateLock(current)||!same(current,lockIdentity))throw failure('STATE_LOCKED');foreignLock=false;return;}
+   catch{foreignLock=true;throw failure('STATE_LOCKED');}
+  }
+  const temporary=!guard;
+  try{await acquireGuard();await reclaimDeadLock();foreignLock=false;}
+  catch(error){foreignLock=true;throw error;}
+  finally{if(temporary)await releaseGuard();}
+ }
+ async function acquireOwnership(){
+  if(lock)return ensureOwnership();
+  try{
+   await acquireGuard();await reclaimDeadLock();
+   lock=await open(lockPath,constants.O_WRONLY|constants.O_CREAT|constants.O_EXCL|constants.O_NOFOLLOW,0o600);lockIdentity=await lock.stat();
+   await lock.writeFile(JSON.stringify({instance:randomBytes(16).toString('hex'),pid:process.pid,started_at:new Date().toISOString()}));await ensureOwnership();
+  }catch(error){await release();if(error.code==='EEXIST')throw failure('STATE_LOCKED');throw error;}
  }
  async function inspect(){
-  try{canonical(dataDir);checks=await preflight({dshHome});await privateDirectory(dataDir);await ensureOwnership();config=await configAt(dataDir);if(config.dshHome!==dshHome)throw failure('PRIVATE_STATE_REQUIRED');await tokenFile(join(dataDir,'channel.key'));await tokenFile(join(dataDir,'admin.key'));if(!running&&!lastError)phase='prepared';}
+  try{canonical(dataDir);checks=await preflight({dshHome});await privateDirectory(dataDir);await ensureOwnership();if(lastError?.code==='STATE_LOCKED')lastError=undefined;config=await configAt(dataDir);if(config.dshHome!==dshHome)throw failure('PRIVATE_STATE_REQUIRED');await tokenFile(join(dataDir,'channel.key'));await tokenFile(join(dataDir,'admin.key'));if(!running&&!lastError)phase='prepared';}
   catch(error){if(error.code==='ENOENT'){if(!running&&!lastError)phase='setup_required';}else{lastError=safeError(Object.hasOwn(MESSAGES,error.code)?error:failure('PRIVATE_STATE_REQUIRED'));phase='blocked';}}
   if(checks.some(c=>!c.ok)){phase='blocked';lastError=safeError(failure('UNSUPPORTED_RUNTIME'));}return response();
  }
- async function prepare(){
+ async function prepare({retainOwnership=false}={}){
   assertOpen();lastError=undefined;if(selectedCloudHealthFile!==undefined)canonical(selectedCloudHealthFile);checks=await preflight({dshHome});if(checks.some(c=>!c.ok))throw failure('UNSUPPORTED_RUNTIME');
-  canonical(dataDir);ports.parse(selectedPorts);await privateDirectory(dataDir,true);await ensureOwnership();
+  canonical(dataDir);ports.parse(selectedPorts);await privateDirectory(dataDir,true);const temporary=!lock;let complete=false;await acquireOwnership();
+  try{
   try{config=await configAt(dataDir);}catch(error){if(error.code!=='ENOENT')throw failure('PRIVATE_STATE_REQUIRED');config={version:1,dshHome,dataDir,principal:'owner-'+randomBytes(16).toString('hex'),ports:selectedPorts,automaticPorts:requestedPorts===undefined,...requestedPorts===undefined?{}:{requestedPorts},...selectedCloudHealthFile===undefined?{}:{cloudHealthFile:selectedCloudHealthFile}};await tokenFile(join(dataDir,'channel.key'),true);await tokenFile(join(dataDir,'admin.key'),true);try{await createPrivateFile(join(dataDir,'config.json'),JSON.stringify(config,null,2)+'\n');}catch(error){if(error.code!=='EEXIST')throw error;config=await configAt(dataDir);}}
   if(config.dshHome!==dshHome)throw failure('PRIVATE_STATE_REQUIRED');await tokenFile(join(dataDir,'channel.key'));await tokenFile(join(dataDir,'admin.key'));
   if(selectedCloudHealthFile!==undefined&&config.cloudHealthFile!==selectedCloudHealthFile){
-   if(running)throw failure('SETUP_RUNNING');let temporaryLock=false;
-   try{
-    if(!lock){try{lock=await open(join(dataDir,'runtime.lock'),constants.O_WRONLY|constants.O_CREAT|constants.O_EXCL|constants.O_NOFOLLOW,0o600);temporaryLock=true;}catch(error){if(error.code==='EEXIST')throw failure('STATE_LOCKED');throw error;}lockIdentity=await lock.stat();await lock.writeFile(JSON.stringify({instance:randomBytes(16).toString('hex'),pid:process.pid,started_at:new Date().toISOString()}));}
-    await ensureOwnership();const current=await configAt(dataDir);await saveConfiguration({...current,cloudHealthFile:selectedCloudHealthFile});
-   }finally{if(temporaryLock)await release();}
+   if(running)throw failure('SETUP_RUNNING');await ensureOwnership();const current=await configAt(dataDir);await saveConfiguration({...current,cloudHealthFile:selectedCloudHealthFile});
   }
-  if(!running)phase='prepared';return response();
+  if(!running)phase='prepared';complete=true;return response();
+  }finally{if(temporary&&(!retainOwnership||!complete))await release();}
  }
  async function saveConfiguration(next){
   if(!lock)throw failure('STATE_LOCKED');await ensureOwnership();await privateDirectory(dataDir);const current=await configAt(dataDir);if(current.principal!==config.principal||next.principal!==current.principal)throw failure('PRIVATE_STATE_REQUIRED');
@@ -134,14 +173,14 @@ export function createManagedRuntime({dshHome:requestedHome,dataDir:requestedDat
  }
  async function release(){
   running=false;let error;for(const resource of [manager,reader])try{await resource?.close();}catch(e){error=e;}manager=undefined;reader=undefined;
-  if(lock){try{const current=await lstat(join(dataDir,'runtime.lock'));if(lockIdentity&&current.dev===lockIdentity.dev&&current.ino===lockIdentity.ino)await unlink(join(dataDir,'runtime.lock'));}catch(e){if(e.code!=='ENOENT')error=e;}await lock.close();lock=undefined;lockIdentity=undefined;}
+  try{if(lock){try{const current=await lstat(lockPath);if(privateLock(current)&&same(current,lockIdentity))await unlink(lockPath);}catch(e){if(e.code!=='ENOENT')error=e;}await lock.close();lock=undefined;lockIdentity=undefined;}}
+  finally{await releaseGuard();}
   if(error)throw error;
  }
  async function start(){
-  assertOpen();if(running)return response();await prepare();const requested=config.automaticPorts?DEFAULT_PORTS:config.requestedPorts??config.ports;await checkPorts(requested);assertOpen();
-  try{lock=await open(join(dataDir,'runtime.lock'),constants.O_WRONLY|constants.O_CREAT|constants.O_EXCL|constants.O_NOFOLLOW,0o600);}catch(error){if(error.code==='EEXIST')throw failure('STATE_LOCKED');throw error;}
+  assertOpen();if(running)return response();
   try{
-   lockIdentity=await lock.stat();await lock.writeFile(JSON.stringify({instance:randomBytes(16).toString('hex'),pid:process.pid,started_at:new Date().toISOString()}));
+   await prepare({retainOwnership:true});const requested=config.automaticPorts?DEFAULT_PORTS:config.requestedPorts??config.ports;await checkPorts(requested);assertOpen();await ensureOwnership();
    const channelToken=await tokenFile(join(dataDir,'channel.key')),adminToken=await tokenFile(join(dataDir,'admin.key'));
    reader=await launchRead({config:{enabled:true,scope:'owner-harness-read-only',dshHome,principal:config.principal,tokenEnv:'DOT_DSH_TOKEN',port:requested.reader},token:channelToken});assertOpen();
    manager=await launchManager({config:{enabled:true,principal:config.principal,stateDir:join(dataDir,'audit'),nativeStateDir:join(dataDir,'tasks'),readUrl:reader.url,gatewayPort:requested.gateway,adminPort:requested.admin,workerPort:requested.worker,nativeExecution:true,...config.cloudHealthFile===undefined?{}:{cloudHealthFile:config.cloudHealthFile}},channelToken,adminToken});assertOpen();
@@ -174,7 +213,7 @@ export function createManagedRuntime({dshHome:requestedHome,dataDir:requestedDat
    if(path!==join(dataDir,'onboarding','health.url'))throw failure('PRIVATE_STATE_REQUIRED');
    let temporaryLock=false;
    try{
-    if(!lock){try{lock=await open(join(dataDir,'runtime.lock'),constants.O_WRONLY|constants.O_CREAT|constants.O_EXCL|constants.O_NOFOLLOW,0o600);temporaryLock=true;}catch(error){if(error.code==='EEXIST')throw failure('STATE_LOCKED');throw error;}lockIdentity=await lock.stat();await lock.writeFile(JSON.stringify({instance:randomBytes(16).toString('hex'),pid:process.pid,started_at:new Date().toISOString()}));}
+    if(!lock){await acquireOwnership();temporaryLock=true;}
     await ensureOwnership();const current=await configAt(dataDir);await saveConfiguration({...current,cloudHealthFile:path});selectedCloudHealthFile=path;
    }finally{if(temporaryLock)await release();}
   }),

@@ -14,7 +14,7 @@ export function createManagementRemote(z) {
   ['archive','manager_archive',z.strictObject({job_id:jobId,archived:z.boolean().optional()})],
   ['followup','manager_followup',z.strictObject({job_id:jobId,task:z.string().trim().min(1).max(8000),request_id:jobId,mode:z.enum(['after_complete','queue','steer']).optional()})],
   ...['Status','Prepare','Start','Stop'].map(name=>[`setup${name}`,`manager_setup_${name.toLowerCase()}`,z.strictObject({})]),
-  ...['Status','Start','Resume','Cancel','Open'].map(name=>[`setupConnect${name}`,`manager_setup_connect_${name.toLowerCase()}`,z.strictObject({})]),
+  ...['Status','Start','Resume','Cancel','Open','Renew','RestartKey','Reopen'].map(name=>[`setupConnect${name}`,`manager_setup_connect_${name.toLowerCase()}`,z.strictObject({})]),
  ];
  const descriptors=definitions.map(([method,,schema])=>({
   id:`dot-dsh-management#dotDshManagement/${method}`,

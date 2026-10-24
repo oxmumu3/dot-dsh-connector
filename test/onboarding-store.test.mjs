@@ -1,4 +1,5 @@
 import {test} from 'node:test';import assert from 'node:assert/strict';import {mkdtemp,realpath,rm,mkdir,readFile,writeFile,symlink,chmod,stat} from 'node:fs/promises';import {join} from 'node:path';import {tmpdir} from 'node:os';
+import {spawnSync} from 'node:child_process';
 const api=await import('../management-plugin/src/onboarding-store.js').catch(()=>({}));
 async function fixture(t){const root=await realpath(await mkdtemp(join(tmpdir(),'dsh-connect-store-')));await chmod(root,0o700);t.after(()=>rm(root,{recursive:true,force:true}));return{root,directory:join(root,'onboarding')};}
 function store(directory){assert.equal(typeof api.createOnboardingStore,'function');return api.createOnboardingStore({directory});}
@@ -9,3 +10,23 @@ test('metadata cannot retain literal secrets, arbitrary fields or resource paths
 test('closing never deletes a replacement lock owned by another generation',async t=>{const f=await fixture(t),s=store(f.directory);await s.acquire();await rm(join(f.directory,'setup.lock'));await writeFile(join(f.directory,'setup.lock'),'foreign',{mode:0o600});await assert.rejects(s.update({activated:false}),{code:'ONBOARDING_LOCKED'});await s.close();assert.equal(await readFile(join(f.directory,'setup.lock'),'utf8'),'foreign');});
 test('concurrent metadata writes are serialized and cancellation intent is the last write',async t=>{const f=await fixture(t),s=store(f.directory);await s.acquire();t.after(()=>s.close());await Promise.all([s.update({tunnel_id:'tunnel_abc123'}),s.update({workspace_id:'workspace_abc123'}),s.update({activated:true}),s.update({activated:false})]);const state=await s.read();assert.equal(state.tunnel_id,'tunnel_abc123');assert.equal(state.workspace_id,'workspace_abc123');assert.equal(state.activated,false);});
 test('incomplete metadata is refused without generating a replacement installation identity',async t=>{const f=await fixture(t),s=store(f.directory);await s.acquire();await s.close();await writeFile(join(f.directory,'state.json'),'{}\n',{mode:0o600});const next=store(f.directory);await assert.rejects(next.acquire(),{code:'ONBOARDING_PRIVATE_STATE'});await next.close();assert.equal(await readFile(join(f.directory,'state.json'),'utf8'),'{}\n');});
+
+test('an exited owner is recovered without replacing installation or account metadata',{skip:process.platform!=='darwin'},async t=>{
+ const f=await fixture(t),moduleUrl=new URL('../management-plugin/src/onboarding-store.js',import.meta.url).href;
+ const child=spawnSync(process.execPath,['--input-type=module','-e',`const {createOnboardingStore}=await import(${JSON.stringify(moduleUrl)});const s=createOnboardingStore({directory:${JSON.stringify(f.directory)}});await s.acquire();await s.update({activated:true,tunnel_id:'tunnel_1234567890abcdef1234567890abcdef'});process.exit(0);`],{encoding:'utf8',timeout:30000});
+ assert.equal(child.status,0,child.stderr);const prior=await readFile(join(f.directory,'state.json'),'utf8'),owner=JSON.parse(await readFile(join(f.directory,'setup.lock'),'utf8'));
+ assert.throws(()=>process.kill(owner.pid,0),{code:'ESRCH'});
+ const s=store(f.directory);await s.acquire();t.after(()=>s.close());assert.equal(await readFile(join(f.directory,'state.json'),'utf8'),prior);assert.equal((await s.read()).activated,true);
+});
+test('simultaneous recovery admits one owner and preserves the winning lock',{skip:process.platform!=='darwin'},async t=>{
+ const f=await fixture(t),s=store(f.directory);await s.acquire();await s.close();
+ const dead=spawnSync(process.execPath,['-e',''],{timeout:30000});assert.equal(dead.status,0);assert.throws(()=>process.kill(dead.pid,0),{code:'ESRCH'});
+ await writeFile(join(f.directory,'setup.lock'),JSON.stringify({instance:'a'.repeat(32),pid:dead.pid})+'\n',{mode:0o600});
+ const candidates=Array.from({length:8},()=>store(f.directory)),results=await Promise.allSettled(candidates.map(x=>x.acquire()));
+ t.after(()=>Promise.all(candidates.map(x=>x.close())));assert.equal(results.filter(x=>x.status==='fulfilled').length,1);
+ const winner=candidates[results.findIndex(x=>x.status==='fulfilled')];await winner.update({activated:true});assert.equal((await winner.read()).activated,true);
+});
+test('unknown lock contents are never removed during recovery',{skip:process.platform!=='darwin'},async t=>{
+ const f=await fixture(t),s=store(f.directory);await s.acquire();await s.close();const path=join(f.directory,'setup.lock');
+ for(const value of ['foreign','{}',JSON.stringify({instance:'a'.repeat(32),pid:process.pid}),JSON.stringify({instance:'a'.repeat(32),pid:-1})]){await writeFile(path,value,{mode:0o600});await assert.rejects(store(f.directory).acquire(),{code:'ONBOARDING_LOCKED'});assert.equal(await readFile(path,'utf8'),value);}
+});

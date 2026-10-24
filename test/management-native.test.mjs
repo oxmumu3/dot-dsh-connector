@@ -16,7 +16,7 @@ const expectedMethods={
  setPaused:'manager_set_paused',cancel:'manager_cancel',workerPoll:'manager_worker_poll',
  archive:'manager_archive',followup:'manager_followup',
  setupStatus:'manager_setup_status',setupPrepare:'manager_setup_prepare',setupStart:'manager_setup_start',setupStop:'manager_setup_stop',
- setupConnectStatus:'manager_setup_connect_status',setupConnectStart:'manager_setup_connect_start',setupConnectResume:'manager_setup_connect_resume',setupConnectCancel:'manager_setup_connect_cancel',setupConnectOpen:'manager_setup_connect_open',
+ setupConnectStatus:'manager_setup_connect_status',setupConnectStart:'manager_setup_connect_start',setupConnectResume:'manager_setup_connect_resume',setupConnectCancel:'manager_setup_connect_cancel',setupConnectOpen:'manager_setup_connect_open',setupConnectRenew:'manager_setup_connect_renew',setupConnectRestartKey:'manager_setup_connect_restartkey',setupConnectReopen:'manager_setup_connect_reopen',
 };
 
 async function fixture(t){
@@ -96,6 +96,18 @@ test('native Remote descriptors declare strict management methods with fixed map
  assert.equal(contribution.descriptors[4].parameters[0].codec.create().safeParse({paused:'yes'}).success,false);
 });
 
+test('renewal owner route calls only the local onboarding operation and rejects foreign or credential-bearing requests',async()=>{
+ const calls=[],registrations=[],ctx={invocation:{peer:{principal:{kind:'owner'}}},typert:{register:value=>registrations.push(value)}};
+ class TypertRemoteService{constructor(scope){this.ctx=scope;}}
+ class RemoteError extends Error{constructor(code,message){super(message);this.code=code;}}
+ const state={purpose:'key-renewal',phase:'authorize',actions:{renew:false,resume:true,cancel:true}};
+ const host=await native.mountManagement(ctx,{call(){throw Error('renewal must not use gateway adapter');}},{TypertRemoteService,RemoteError},{setup:{connect_renew:async()=>{calls.push('renew');return state;}}});
+ assert.equal(typeof host.setupConnectRenew,'function');assert.equal(registrations[0].invocations.some(x=>x.method==='setupConnectRenew'),true);
+ assert.deepEqual(await host.setupConnectRenew({}),state);assert.deepEqual(calls,['renew']);
+ await assert.rejects(host.setupConnectRenew({key:'must-not-be-accepted'}),error=>error.code==='dot-management/invalid-request');
+ ctx.invocation.peer.principal.kind='external';await assert.rejects(host.setupConnectRenew({}),error=>error.code==='dot-management/denied');assert.deepEqual(calls,['renew']);
+});
+
 test('native browser factory mounts its own Remote contribution and registers an isolated main panel',async()=>{
  assert.equal(typeof ui.managementClientFactory,'function');
  const mounted=[],registrations=[],calls=[],injections=[];
@@ -106,7 +118,7 @@ test('native browser factory mounts its own Remote contribution and registers an
   inject:(name,register)=>register(),register:(options,component)=>{registrations.push({options,component});return()=>{};}
  }};
  await api.apply(ctx);
- assert.equal(mounted.length,1);assert.equal(mounted[0].descriptors.length,18);
+ assert.equal(mounted.length,1);assert.equal(mounted[0].descriptors.length,21);
  assert.deepEqual(mounted[0].descriptors.map(d=>d.method),Object.keys(expectedMethods));
  assert.equal(registrations.find(r=>r.options.name==='main').options.key,'dot-management');
  assert.equal(registrations.find(r=>r.options.name==='sidebar.panellist').options.id,'dot-management');
@@ -196,7 +208,7 @@ async function nativeSdk(t){
   return {load:name=>import(pathToFileURL(require.resolve(name)).href),async loadManagement(){
    // Preserve the actual exported plugin lifecycle, resolving its public SDK
    // dependencies from this isolated distribution rather than any user profile.
-   const files=['index.js','src/remote.js','src/setup-runtime.js','src/onboarding-runtime.js','src/onboarding-store.js','src/onboarding-tunnel.js','src/onboarding-browser.js','runtime/src/python-runtime.js','package.json'];
+   const files=['index.js','src/remote.js','src/setup-runtime.js','src/onboarding-runtime.js','src/onboarding-store.js','src/onboarding-credentials.js','src/onboarding-tunnel.js','src/onboarding-tunnel-supervisor.js','src/onboarding-browser.js','runtime/src/python-runtime.js','package.json'];
    for(const path of files){
     const destination=join(directory,'management-plugin',path);
     await mkdir(dirname(destination),{recursive:true});

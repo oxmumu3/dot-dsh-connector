@@ -153,7 +153,7 @@ export async function apply(ctx,options={}){
   runtime=createManagedRuntime(parsed.data);
   localAdapter=createManagedAdapter(runtime);
   onboarding=createOnboardingRuntime({local:runtime,call:(tool,args,signal)=>localAdapter.call(tool,args,signal)});
-  const setup={status:async()=>({...await runtime.status(),connection_setup:await onboarding.status()}),prepare:()=>runtime.prepare(),start:async()=>{localAdapter.reset();return runtime.start();},stop:async()=>{await onboarding.cancel();localAdapter.reset();return runtime.stop();},...Object.fromEntries(['status','start','resume','cancel','open'].map(operation=>['connect_'+operation,()=>onboarding[operation]()]))};
+  const setup={status:async()=>({...await runtime.status(),connection_setup:await onboarding.status()}),prepare:()=>runtime.prepare(),start:async()=>{localAdapter.reset();return runtime.start();},stop:async()=>{await onboarding.cancel();localAdapter.reset();return runtime.stop();},...Object.fromEntries(['status','start','resume','cancel','open','renew','restartkey','reopen'].map(operation=>['connect_'+operation,()=>onboarding[operation]()]))};
   await mountManagement(ctx,localAdapter,sdk,{setup});
   if(closed)throw fail('UNAVAILABLE');await runtime.resume();if(!closed)await onboarding.restore();
  }catch(error){await onboarding?.close();adapter?.close();localAdapter?.close();await runtime?.close();throw error;}
