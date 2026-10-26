@@ -62,7 +62,7 @@ test('actual public AgentLoop completes a connector-owned turn through a determi
  const require=createRequire(join(sdk.root,'package.json'));const load=name=>import(pathToFileURL(require.resolve(name)).href);
  let ctx,executor;const scratch=await mkdtemp(join(tmpdir(),'dot-dsh-native-turn-'));
  t.after(async()=>{await executor?.close();await ctx?.fiber.dispose();await rm(scratch,{recursive:true,force:true});await sdk.close();});
- for(const name of ROOT_PACKAGES.filter(name=>name.includes('/dsh-')))assert.equal(require(`${name}/package.json`).version,'0.2.1-rc.2',name);
+ const selectedSdk=require('@deepseek-ai/dsh-agent/package.json').version;assert.ok(['0.2.1-rc.2','0.2.1-rc.3'].includes(selectedSdk));for(const name of ROOT_PACKAGES.filter(name=>name.includes('/dsh-')))assert.equal(require(`${name}/package.json`).version,selectedSdk,name);
  const [{Context},{default:Agents},{default:AgentLoop},{default:SystemPrompt},{default:Tools},{default:Llm,LlmAdapter,createUserMessage},{default:Sessions},{default:Projections}]=await Promise.all(ROOT_PACKAGES.map(load));
  let networkCalls=0;t.mock.method(globalThis,'fetch',()=>{networkCalls++;throw new Error('Network disabled by native-loop test');});
  ctx=new Context();const requests=[];

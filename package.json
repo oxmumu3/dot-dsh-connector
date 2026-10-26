@@ -1,13 +1,13 @@
 {
   "name": "dot-dsh-connector",
-  "version": "0.6.0-preview.17",
+  "version": "0.6.0-preview.18",
   "description": "Owner-only Dot to DeepSeek Harness connector with native management and metadata audit",
   "type": "module",
   "license": "MIT",
-  "author": "奥克斯木木山",
+  "author": "牛村木木山",
   "engines": {
     "node": ">=22.15",
-    "dsh": "0.2.1-rc.2"
+    "dsh": "0.2.1-rc.2 || 0.2.1-rc.3"
   },
   "exports": {
     ".": "./index.js",
@@ -47,7 +47,7 @@
     "zod": "4.6.7"
   },
   "peerDependencies": {
-    "@deepseek-ai/dsh-llm": "0.2.1-rc.2"
+    "@deepseek-ai/dsh-llm": "0.2.1-rc.2 || 0.2.1-rc.3"
   },
   "peerDependenciesMeta": {
     "@deepseek-ai/dsh-llm": {

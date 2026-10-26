@@ -46,4 +46,4 @@ preview.13 增加自助更新连接授权：运行密钥按 30 天期限创建�
 
 macOS、标准 Applications 路径下的 Harness Desktop `0.2.1-rc.2`、Harness 自带的 Node 与 Python 运行时。首次连接使用 ego lite，并下载 OpenAI Tunnel 组件；网络失败可以重试，不调整系统代理或停用现有网络。首次登录、验证码、平台最终授权以及组织管理员限制仍由官方页面控制。安装插件不会赋予账号本来没有的组织 / workspace 权限。
 
-维护者：奥克斯木木山，GitHub namespace `oxmumu3`。正式仓库：[oxmumu3/dot-dsh-connector](https://github.com/oxmumu3/dot-dsh-connector)。在上述固定版本发行页选择 `dot-dsh-management` 原生包；源码快照不等于发布回执，资产可用性以发行页为准。实际验证阶段见 [验收记录](verification.md)。
+维护者：牛村木木山，GitHub namespace `oxmumu3`。正式仓库：[oxmumu3/dot-dsh-connector](https://github.com/oxmumu3/dot-dsh-connector)。在上述固定版本发行页选择 `dot-dsh-management` 原生包；源码快照不等于发布回执，资产可用性以发行页为准。实际验证阶段见 [验收记录](verification.md)。

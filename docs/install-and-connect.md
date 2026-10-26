@@ -1,6 +1,6 @@
 # 安装并连接自己的 Dot
 
-当前版本为 `0.6.0-preview.17`（预发布版）。公开下载、Harness 官方一句话安装，以及真实 Dot 读取项目文件并完成原生任务均已验证。当前支持 macOS，并要求账号具备相应官方权限；实测范围见[验收记录](verification.md)。
+当前版本为 `0.6.0-preview.18`（预发布版）。本版修复 Harness 0.2.1-rc.3 更新后不能加载、预检和读取会话的问题；采用原生加载、纯会话读取和合成原生任务验收。此前 preview.17 的真人 Dot 验证保留在历史记录，本轮不扩大为新的云端账号或手机验收。当前支持 macOS，并要求账号具备相应官方权限；实测范围见[验收记录](verification.md)。
 
 这个插件让你的 Dot 读取 DeepSeek Harness 项目并派任务。连接使用你自己的账号和电脑，任务使用 Harness 原有的模型、工具和审批设置。
 
@@ -8,7 +8,7 @@
 
 在 Harness 新建会话，选择「创造模式」，粘贴：
 
-> 请使用插件管理工具安装并启用这个 Dot → Harness 插件：https://github.com/oxmumu3/dot-dsh-connector/releases/download/v0.6.0-preview.17/dot-dsh-management-0.6.0-preview.17.tgz 。保留已有连接、配置和任务。安装成功后告诉我打开侧栏「Dot 连接」；首次使用点击「连接我的 Dot」，按提示登录自己的账号并确认授权，原有连接继续沿用。
+> 请使用插件管理工具安装并启用这个 Dot → Harness 插件：https://github.com/oxmumu3/dot-dsh-connector/releases/download/v0.6.0-preview.18/dot-dsh-management-0.6.0-preview.18.tgz 。保留已有连接、配置和任务。安装成功后告诉我打开侧栏「Dot 连接」；首次使用点击「连接我的 Dot」，按提示登录自己的账号并确认授权，原有连接继续沿用。
 
 如提示安装审批，核对后确认。只安装 `dot-dsh-management` 这一个原生插件即可；不需要另装仓库根包、运行终端命令或创建 DeepSeek 模型 API key。
 
@@ -48,10 +48,10 @@ Harness 必须保持运行；关闭插件页面不影响后台连接。应用退
 
 ## 使用前确认
 
-当前支持 macOS 的 Harness Desktop，已核对宿主基线为 `0.2.1-rc.2`；标准原生安装不需要另装全局 Node 或 Python。你需要具备 Dot、Tunnel、自定义工具权限的 OpenAI 账号，以及 Harness 中可用的模型、工具和真实项目。账号资格由官方决定。
+当前支持 macOS 的 Harness Desktop，已核对宿主基线为 `0.2.1-rc.2` 或 `0.2.1-rc.3`；标准原生安装不需要另装全局 Node 或 Python。你需要具备 Dot、Tunnel、自定义工具权限的 OpenAI 账号，以及 Harness 中可用的模型、工具和真实项目。账号资格由官方决定。
 
 升级同一个插件会沿用原有连接与数据。使用外部服务的旧部署，先按[维护说明](operator-runbook.md)核对归属及运行中的任务，不删除旧凭据或关闭未知服务。
 
 版本、实际验证范围和仍未覆盖的环境见[验收记录](verification.md)。详细首次连接机制见[首次连接说明](first-connection.md)；[手动配置参考](new-user-connect.md)仅用于旧部署，不是普通用户的主流程。
 
-维护者：奥克斯木木山。正式仓库：[oxmumu3/dot-dsh-connector](https://github.com/oxmumu3/dot-dsh-connector)。
+维护者：牛村木木山。正式仓库：[oxmumu3/dot-dsh-connector](https://github.com/oxmumu3/dot-dsh-connector)。

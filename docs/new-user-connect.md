@@ -71,4 +71,4 @@ tunnel-client runtimes status my-harness --json
 
 官方说明：https://developers.openai.com/api/docs/guides/secure-mcp-tunnels
 
-维护者：奥克斯木木山。正式对外 namespace 为 oxmumu3；本说明不提供尚未核验的公开仓库或 Release 下载地址。
+维护者：牛村木木山。正式对外 namespace 为 oxmumu3；本说明不提供尚未核验的公开仓库或 Release 下载地址。
