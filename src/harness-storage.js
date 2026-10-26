@@ -34,7 +34,10 @@ function readStorage(home,operation,artifact){return new Promise((fulfil,reject)
 async function openCodecs(){
  const temporary=await mkdtemp(join(tmpdir(),'dot-dsh-read-codecs-'));let archive;
  try{
-  archive=await open(ASAR,'r');const first=Buffer.alloc(16);await archive.read(first,0,16,0);const headerSize=first.readUInt32LE(4),jsonSize=first.readUInt32LE(12);if(jsonSize<2||jsonSize>32*1024*1024)throw error();
+  // Electron virtualizes fs paths ending in .asar. Read the trusted archive's
+  // physical header through its original fs, without changing global ASAR state.
+  const archiveOpen=process.versions.electron?createRequire(import.meta.url)('original-fs').promises.open:open;
+  archive=await archiveOpen(ASAR,'r');const first=Buffer.alloc(16);await archive.read(first,0,16,0);const headerSize=first.readUInt32LE(4),jsonSize=first.readUInt32LE(12);if(jsonSize<2||jsonSize>32*1024*1024)throw error();
   const header=Buffer.alloc(jsonSize);const read=await archive.read(header,0,jsonSize,16);if(read.bytesRead!==jsonSize)throw error();const tree=JSON.parse(header.toString('utf8')),start=8+headerSize;
   const lookup=path=>path.split('/').reduce((node,part)=>node?.files?.[part],tree);
   async function bytes(path,node=lookup(path)){if(!node||node.link||!Number.isSafeInteger(node.size)||node.size<0||node.size>16*1024*1024)throw error();if(node.unpacked)return readFile(`${ASAR}.unpacked/${path}`);const value=Buffer.alloc(node.size);if((await archive.read(value,0,value.length,start+Number(node.offset))).bytesRead!==value.length)throw error();return value;}

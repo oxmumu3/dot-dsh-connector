@@ -1,6 +1,6 @@
 {
   "name": "dot-dsh-connector",
-  "version": "0.6.0-preview.18",
+  "version": "0.6.0-preview.19",
   "description": "Owner-only Dot to DeepSeek Harness connector with native management and metadata audit",
   "type": "module",
   "license": "MIT",
