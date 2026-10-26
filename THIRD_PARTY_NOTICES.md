@@ -1,6 +1,6 @@
 # Third-party notices and provenance
 
-This community connector is by 奥克斯木木山. It is not an official OpenAI, DeepSeek, or upstream-author product.
+This community connector is by 牛村木木山. It is not an official OpenAI, DeepSeek, or upstream-author product.
 
 ## Direct dependencies
 

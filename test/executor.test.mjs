@@ -100,7 +100,7 @@ test('real public 0.2.1-rc.2 tool registry denies scope-local tools even after a
  const sdk=await openPublicSdk({sdkRoot:process.env.DSH_TEST_SDK_ROOT});t.after(()=>sdk.close());
  const require=createRequire(`${sdk.root}/package.json`);const load=name=>import(pathToFileURL(require.resolve(name)).href);
  const [{Context},{default:SystemPrompt},{default:ToolRuntime,defineTool},{createScope},{createUserMessage}]=await Promise.all(['@deepseek-ai/cordis','@deepseek-ai/dsh-system-prompt','@deepseek-ai/dsh-tools','@deepseek-ai/dsh-scope','@deepseek-ai/dsh-llm'].map(load));
- assert.equal(require('@deepseek-ai/dsh-tools/package.json').version,'0.2.1-rc.2');
+ assert.ok(['0.2.1-rc.2','0.2.1-rc.3'].includes(require('@deepseek-ai/dsh-tools/package.json').version));
  const {createExecutor}=await api();const ctx=new Context();await ctx.plugin(SystemPrompt,{});await ctx.plugin(ToolRuntime,{mode:'native'});let executed=0,agent,ownerCtx;ctx.provide('agentDefaultModel',{currentSelection:()=>({provider:'synthetic',model:'no-model-called'})});
  await ctx.plugin({name:'synthetic-executor-mount',inject:['tools','systemPrompt'],apply(scope){ownerCtx=scope;}});
  ctx.provide('agents',{get:()=>undefined,async create(options){agent={id:options.sessionId,session:{id:options.sessionId,header:options.meta},followup(){},cancel(){}};const scoped=createScope(ownerCtx,agent);agent.ctx=scoped.ctx;await options.setup(scoped.ctx,agent);return{agent,dispose:()=>scoped.dispose()};}});

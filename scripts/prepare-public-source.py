@@ -133,7 +133,7 @@ def export_source(root, output):
     try:
         package = json.loads(pending['package.json'])
         native = json.loads(pending['management-plugin/package.json'])
-        if package.get('name') != 'dot-dsh-connector' or native.get('name') != 'dot-dsh-management' or package.get('version') != native.get('version') or package.get('author') != '奥克斯木木山' or native.get('author') != '奥克斯木木山':
+        if package.get('name') != 'dot-dsh-connector' or native.get('name') != 'dot-dsh-management' or package.get('version') != native.get('version') or package.get('author') != '牛村木木山' or native.get('author') != '牛村木木山':
             raise ValueError('identity')
     except (KeyError, ValueError, TypeError):
         findings.append({'path': 'package.json', 'kind': 'package_identity'})

@@ -1,3 +1,9 @@
+# 0.6.0-preview.18 · Harness rc.3 兼容修复
+
+本版基于已安装与已公开的 preview.17，只修复明确的版本边界：原生插件加载、本机自检、官方纯会话 codec 与独立原生执行器接受已验证的 0.2.1-rc.2 / 0.2.1-rc.3，仍拒绝未验证版本及混合 SDK。作者元数据更正为牛村木木山。
+
+验收使用当前官方 rc.3 分发包、隔离临时目录和合成项目。普通会话记录读取、实际 AgentLoop 完成回合、原生 Owner Remote 请求、存储约束和权限拒绝均作回归。本轮不读取私人项目、不创建账号或密钥、不发送真实微信、不重启日常 Host；真实 Dot/续期/空白机器和长期可靠性分别沿用下方历史边界。
+
 # 0.6.0-preview.17 — public installation, recovery UI and real Dot read/task accepted
 
 Preview.17 is a published prerelease and has been installed through the actual public one-sentence Harness flow. The installed connection then served a fresh real Dot README read and exactly one completed native task. Native settings readback showed cloud online and connection restored without an error, with the estimated credential expiry and renewal action visible. These observations complete this bounded delivery; they do not establish every new account's eligibility or a completely blank-machine setup.
@@ -180,7 +186,7 @@ A short local read-health probe briefly displayed partial readiness under load b
 
 The native archive was extracted into an empty temporary directory; ordinary npm dependency installation, module import and inert disabled loading passed. Root archive dependency installation also passed. npm omits package-lock from published archives, so the check now requires shrinkwrap and validates package-lock only when present. The native package pins direct dependencies but does not claim a separately locked transitive tree.
 
-Public archive scans exclude private state, personal paths, old project identity, live connection IDs and real key material. No public repository or Release has been published or verified; the deliverable is a local preview package under the identity 奥克斯木木山 / oxmumu3.
+Public archive scans exclude private state, personal paths, old project identity, live connection IDs and real key material. No public repository or Release has been published or verified; the deliverable is a local preview package under the identity 牛村木木山 / oxmumu3.
 
 **Not yet accepted:** a completely new user's end-to-end account setup; automated renewal or self-service replacement of expired/revoked runtime keys; generic unattended reliability; user content/visual acceptance. New keys are created with a 30-day expiry, and this candidate still needs maintainer assistance to replace an invalid saved key. Self-test file/command restrictions are instructions to Harness, not a separate sandbox guarantee.
 
@@ -206,7 +212,7 @@ Independent review found and then verified repairs for old-manager compatibility
 
 Synthetic ego browser acceptance verified filtering, request lookup, archive/unarchive, continuation/queue/steer dispatch, waiting questions, stale/error handling and action guards, setup controls, event pagination, compatibility capability display, desktop light/dark layouts and a 390px page without whole-page overflow. This synthetic run is separate from the live native and actual Dot checks below. Private UI evidence is saved in the owner's ignored local evidence directory.
 
-The native archive `dot-dsh-management-0.5.0-preview.1.tgz` contains 40 files, 106913 bytes; SHA256 `189c6e6860d5097e84bf6666457526d3665bc6e1578f1864aa7396621006d1bb`. Every archive member matches the frozen package source/build. It excludes private state, source-control directories, node_modules, personal home paths and the retired project identity. The author is 奥克斯木木山. No public repository or Release is claimed.
+The native archive `dot-dsh-management-0.5.0-preview.1.tgz` contains 40 files, 106913 bytes; SHA256 `189c6e6860d5097e84bf6666457526d3665bc6e1578f1864aa7396621006d1bb`. Every archive member matches the frozen package source/build. It excludes private state, source-control directories, node_modules, personal home paths and the retired project identity. The author is 牛村木木山. No public repository or Release is claimed.
 
 An extracted native package started and stopped real local reader/manager services on temporary ports and retained its private principal; installed dependency modules were linked for this test. A separate official Desktop CLI call against a fresh empty temporary DSH_HOME returned the expected prerequisite refusal before pnpm: initialize Desktop once, then fully quit before plugin installation. It created no files in that temporary home. The later official installation into the owner's existing initialized Desktop profile exited zero. This verifies an in-place upgrade, not a clean dependency installation into a fresh initialized profile.
 

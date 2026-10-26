@@ -42,4 +42,4 @@ preview.12 把缺少 Ego 时的准备也收进插件：点击「安装 Ego 并�
 - 运行密钥按 30 天创建。preview.13 提供本人确认的自助更新授权；预计期限不是服务端实时到期查询，旧版无日期的授权显示待确认。
 - 真实 Google 登录、读取与派任务、隔离安装路径、GUI 首次设置和空白机器首次连接分别记录，不能互相替代。详见 [验收记录](verification.md)。
 
-维护者：奥克斯木木山。正式仓库：[oxmumu3/dot-dsh-connector](https://github.com/oxmumu3/dot-dsh-connector)。仓库归属与上传源码已核验；Release 发布及下载验收状态见 [验收记录](verification.md)。
+维护者：牛村木木山。正式仓库：[oxmumu3/dot-dsh-connector](https://github.com/oxmumu3/dot-dsh-connector)。仓库归属与上传源码已核验；Release 发布及下载验收状态见 [验收记录](verification.md)。

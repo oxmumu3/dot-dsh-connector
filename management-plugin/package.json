@@ -1,12 +1,12 @@
 {
   "name": "dot-dsh-management",
-  "version": "0.6.0-preview.17",
+  "version": "0.6.0-preview.18",
   "description": "DSH 原生 Dot 连接管理页：访问记录、独立任务与连接控制",
   "type": "module",
   "license": "MIT",
   "engines": {
     "node": ">=22.15",
-    "dsh": "0.2.1-rc.2"
+    "dsh": "0.2.1-rc.2 || 0.2.1-rc.3"
   },
   "exports": {
     ".": "./index.js",
@@ -48,7 +48,7 @@
     "THIRD_PARTY_NOTICES.md",
     "third-party-licenses/"
   ],
-  "author": "奥克斯木木山",
+  "author": "牛村木木山",
   "bin": {
     "dot-dsh-setup": "./scripts/setup.mjs",
     "dot-dsh-mcp-managed": "./scripts/mcp-managed.mjs"

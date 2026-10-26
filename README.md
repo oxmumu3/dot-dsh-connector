@@ -1,6 +1,6 @@
 # Dot → Harness 插件
 
-当前版本为 `0.6.0-preview.17`（预发布版）。公开下载、Harness 官方一句话安装，以及真实 Dot 读取项目文件并完成原生任务均已验证。当前支持 macOS，并要求账号具备相应官方权限；实测范围见[验收记录](docs/verification.md)。
+当前版本为 `0.6.0-preview.18`（预发布版）。本版修复 Harness 0.2.1-rc.3 更新后不能加载、预检和读取会话的问题；采用原生加载、纯会话读取和合成原生任务验收。此前 preview.17 的真人 Dot 验证保留在历史记录，本轮不扩大为新的云端账号或手机验收。当前支持 macOS，并要求账号具备相应官方权限；实测范围见[验收记录](docs/verification.md)。
 
 让你的 Dot 读取 DeepSeek Harness 项目、查看已保存的会话，并给 Harness 派任务、继续任务、查看结果。任务使用你当前 Harness 的模型、工具和审批设置，可以修改项目文件、运行命令。
 
@@ -10,7 +10,7 @@
 
 在 Harness 新建会话，选择「创造模式」，复制下面这句话：
 
-> 请使用插件管理工具安装并启用这个 Dot → Harness 插件：https://github.com/oxmumu3/dot-dsh-connector/releases/download/v0.6.0-preview.17/dot-dsh-management-0.6.0-preview.17.tgz 。保留已有连接、配置和任务。安装成功后告诉我打开侧栏「Dot 连接」；首次使用点击「连接我的 Dot」，按提示登录自己的账号并确认授权，原有连接继续沿用。
+> 请使用插件管理工具安装并启用这个 Dot → Harness 插件：https://github.com/oxmumu3/dot-dsh-connector/releases/download/v0.6.0-preview.18/dot-dsh-management-0.6.0-preview.18.tgz 。保留已有连接、配置和任务。安装成功后告诉我打开侧栏「Dot 连接」；首次使用点击「连接我的 Dot」，按提示登录自己的账号并确认授权，原有连接继续沿用。
 
 如 Harness 提示安装审批，核对内容后确认。安装后打开「Dot 连接」，点击「连接我的 Dot」：
 
@@ -43,7 +43,7 @@ Harness 需要保持运行，关闭「Dot 连接」页面不会停止后台连�
 
 ## 使用条件
 
-- 当前支持 macOS 的 DeepSeek Harness Desktop，已核对的宿主基线为 `0.2.1-rc.2`。标准原生安装复用 Harness 自带运行时，无需另装全局 Node 或 Python。
+- 当前支持 macOS 的 DeepSeek Harness Desktop，已核对的宿主基线为 `0.2.1-rc.2` 或 `0.2.1-rc.3`。标准原生安装复用 Harness 自带运行时，无需另装全局 Node 或 Python。
 - 使用自己的、具备 Dot、Tunnel 与自定义工具权限的 OpenAI 账号。账号资格由官方决定，插件不能替账号开通这些能力。
 - Harness 至少有一个已登记的真实项目，并有可用的模型与工具。没有项目时按插件提示选择文件夹。
 - 每个连接只服务其所有者。普通文件和已保存会话可以读取；凭据文件排除在读取范围外。文本脱敏尽力处理，不承诺识别全部敏感内容。
@@ -69,6 +69,6 @@ npm run build:management
 
 合成测试不能代替真实 Harness 或 Dot 验收。升级仅处理本插件，不重启正在运行任务的 Host 或全局重载其他插件。
 
-维护者：奥克斯木木山。正式仓库：[oxmumu3/dot-dsh-connector](https://github.com/oxmumu3/dot-dsh-connector)。本插件与 Harness 自带的 DSH Dot、微信项目助理分别运行。
+维护者：牛村木木山。正式仓库：[oxmumu3/dot-dsh-connector](https://github.com/oxmumu3/dot-dsh-connector)。本插件与 Harness 自带的 DSH Dot、微信项目助理分别运行。
 
 MIT。依赖许可见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
