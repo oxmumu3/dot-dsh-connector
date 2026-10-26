@@ -35,6 +35,7 @@ test('session list decodes only released headers and does not parse message bodi
  assert.equal(result.items.length,2);assert.ok(result.items.every(item=>!Object.hasOwn(item,'agentAvailable')&&!Object.hasOwn(item,'running')&&!Object.hasOwn(item,'blank')));
 });
 test('real official pure codecs read v0 and v4 history without migration or writes',async t=>{
+ const previousAsarSetting=process.noAsar;
  const f=await fixture(t),events=[event(0,'session/title',{title:'Fixture title'}),user(1,'hello'),event(2,'assistant/message',{turn:'turn1',step:'step1',message:{id:'a2',content:[{type:'text',text:'answer'}]}})];
  const current=await f.session('s1',4,events,{zstd:true});const old=await f.session('old',0,[user(0,'legacy')],{zstd:true});
  const before=await Promise.all([readFile(current),readFile(old)]);const adapter=create({dshHome:f.home});t.after(()=>adapter.close());
@@ -44,6 +45,7 @@ test('real official pure codecs read v0 and v4 history without migration or writ
   assert.equal(result.records.at(-1).event.data.message.content[0].text,id==='s1'?'answer':'legacy');
  }
  assert.deepEqual(await Promise.all([readFile(current),readFile(old)]),before);
+ assert.equal(process.noAsar,previousAsarSetting,'Archive loading must not change Electron global ASAR behavior');
 });
 test('fresh committed append is visible and pagination is a decreasing exclusive sequence cut',async t=>{
  const f=await fixture(t);const file=await f.session('s1',4,[user(0,'one'),user(1,'two'),user(2,'three')]);const adapter=create({dshHome:f.home});t.after(()=>adapter.close());

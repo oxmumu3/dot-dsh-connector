@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 const root=fileURLToPath(new URL('..',import.meta.url));
 async function walk(dir){const result=[];for(const entry of await readdir(join(root,dir),{withFileTypes:true})){const path=join(dir,entry.name);if(entry.isDirectory())result.push(...await walk(path));else result.push(path);}return result;}
 const pkg=JSON.parse(await readFile(join(root,'package.json'),'utf8'));
-assert.equal(pkg.name,'dot-dsh-connector');assert.equal(pkg.version,'0.6.0-preview.18');
+assert.equal(pkg.name,'dot-dsh-connector');assert.equal(pkg.version,'0.6.0-preview.19');
 const files=['index.js',...await walk('src'),...await walk('scripts'),'management-plugin/index.js',...await walk('management-plugin/src'),...await walk('management-plugin/scripts')];
 for(const path of files.filter(path=>/\.[cm]?js$/.test(path))){const r=spawnSync(process.execPath,['--check',join(root,path)],{encoding:'utf8'});assert.equal(r.status,0,`${path}: ${r.stderr}`);}
 const python=spawnSync('python3',['-c','import os,sys; assert sys.version_info >= (3,10); assert os.open in os.supports_dir_fd; assert hasattr(os,"O_NOFOLLOW"); print("Python descriptor reads supported")'],{encoding:'utf8'});assert.equal(python.status,0,'Python 3.10+ with nofollow/openat support required');
