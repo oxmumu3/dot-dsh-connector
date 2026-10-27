@@ -1,6 +1,6 @@
 # Dot → Harness 插件
 
-这是安装到 DeepSeek Harness 的原生插件，包名为 `dot-dsh-management`，维护者为牛村木木山。通过它，Dot 可以读取本人已保存的项目与会话，并给 Harness 派任务、查进度、补充要求和取消任务。任务沿用 Harness 的当前模型、工具与审批，可以修改项目文件、运行命令。
+这是安装到 DeepSeek Harness 的原生插件，包名为 `@oxmumu3/dot-dsh-management`，维护者为牛村木木山。通过它，Dot 可以读取本人已保存的项目与会话，并给 Harness 派任务、查进度、补充要求和取消任务。任务沿用 Harness 的当前模型、工具与审批，可以修改项目文件、运行命令。
 
 ## 安装和连接
 
@@ -35,11 +35,11 @@ Harness Desktop 需保持运行，管理页可以关闭。插件只启停自己�
 
 ## 旧版外部服务兼容
 
-已有 `enabled:true,tokenFile` 配置继续使用原管理网关，不迁移、覆盖或关闭外部服务。更新同一个 `dot-dsh-management` 插件，保留该配置与账号连接：
+已有 `enabled:true,tokenFile` 配置继续使用原管理网关，不迁移、覆盖或关闭外部服务。更新同一个 `@oxmumu3/dot-dsh-management` 插件，保留该配置与账号连接：
 
 ```yaml
 - id: dot-dsh-management
-  name: dot-dsh-management
+  name: "@oxmumu3/dot-dsh-management"
   disabled: false
   config:
     enabled: true
