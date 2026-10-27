@@ -1,5 +1,5 @@
 {
-  "name": "dot-dsh-management",
+  "name": "@oxmumu3/dot-dsh-management",
   "version": "0.6.0-preview.19",
   "description": "DSH 原生 Dot 连接管理页：访问记录、独立任务与连接控制",
   "type": "module",
@@ -40,11 +40,11 @@
     "index.js",
     "src/",
     "lib/",
+    "runtime/",
+    "scripts/",
     "cordis.patch.yml",
     "README.md",
     "LICENSE",
-    "runtime/",
-    "scripts/",
     "THIRD_PARTY_NOTICES.md",
     "third-party-licenses/"
   ],
@@ -55,10 +55,15 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/oxmumu3/dot-dsh-connector.git"
+    "url": "git+https://github.com/oxmumu3/dot-dsh-connector.git",
+    "directory": "management-plugin"
   },
   "homepage": "https://github.com/oxmumu3/dot-dsh-connector",
   "bugs": {
     "url": "https://github.com/oxmumu3/dot-dsh-connector/issues"
+  },
+  "publishConfig": {
+    "access": "public",
+    "tag": "latest"
   }
 }
