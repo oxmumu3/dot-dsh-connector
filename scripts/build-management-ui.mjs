@@ -8,7 +8,7 @@ import {createManagementUI,managementClientFactory,createNativeWorker} from '../
 /** No duplicate React runtime or dependencies: publish the official lazy factory protocol. */
 export async function buildManagementUi(){
  const destination=new URL('../management-plugin/lib/client.js',import.meta.url);
- const body=`// Built by scripts/build-management-ui.mjs; shared React and Zod come from DSH.\nwindow.__ModuleLoader__.load({id:'dot-dsh-management',factory:(require)=>(${managementClientFactory.toString()})(require,${createManagementRemote.toString()},${createManagementUI.toString()},${createNativeWorker.toString()})});\n`;
+ const body=`// Built by scripts/build-management-ui.mjs; shared React and Zod come from DSH.\nwindow.__ModuleLoader__.load({id:'@oxmumu3/dot-dsh-management',factory:(require)=>(${managementClientFactory.toString()})(require,${createManagementRemote.toString()},${createManagementUI.toString()},${createNativeWorker.toString()})});\n`;
  await mkdir(new URL('../management-plugin/lib/',import.meta.url),{recursive:true});await writeFile(destination,body);
  return {path:fileURLToPath(destination),bytes:Buffer.byteLength(body),sha256:createHash('sha256').update(body).digest('hex')};
 }

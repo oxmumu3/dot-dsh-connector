@@ -17,13 +17,13 @@ export function createManagementRemote(z) {
   ...['Status','Start','Resume','Cancel','Open','Renew','RestartKey','Reopen'].map(name=>[`setupConnect${name}`,`manager_setup_connect_${name.toLowerCase()}`,z.strictObject({})]),
  ];
  const descriptors=definitions.map(([method,,schema])=>({
-  id:`dot-dsh-management#dotDshManagement/${method}`,
+  id:`@oxmumu3/dot-dsh-management#dotDshManagement/${method}`,
   service:'dotDshManagement',namespace:'dotDshManagement',method,
   invocation:{kind:'direct'},cancellation:{parameter:'signal'},
-  parameters:[{name:'request',wire:'request',source:'json',codec:{mode:'strict',typeSymbol:`dot-dsh-management#${method}Request`,create:()=>schema},strictCodec:{mode:'strict',typeSymbol:`dot-dsh-management#${method}Request`,create:()=>schema}}],
-  result:{mode:'strict',typeSymbol:`dot-dsh-management#${method}Result`,create:()=>z.json()},
+  parameters:[{name:'request',wire:'request',source:'json',codec:{mode:'strict',typeSymbol:`@oxmumu3/dot-dsh-management#${method}Request`,create:()=>schema},strictCodec:{mode:'strict',typeSymbol:`@oxmumu3/dot-dsh-management#${method}Request`,create:()=>schema}}],
+  result:{mode:'strict',typeSymbol:`@oxmumu3/dot-dsh-management#${method}Result`,create:()=>z.json()},
  }));
- return {package:'dot-dsh-management',descriptors,
+ return {package:'@oxmumu3/dot-dsh-management',descriptors,
   methods:Object.fromEntries(definitions.map(([method,tool,schema])=>[method,{tool,schema}])),
  };
 }

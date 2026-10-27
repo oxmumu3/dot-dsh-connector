@@ -81,11 +81,11 @@ test('admin adapter bounds responses and never forwards raw credential-bearing b
 test('native Remote descriptors declare strict management methods with fixed mapping',()=>{
  assert.equal(typeof remote.createManagementRemote,'function');
  const contribution=remote.createManagementRemote(z);
- assert.equal(contribution.package,'dot-dsh-management');
+ assert.equal(contribution.package,'@oxmumu3/dot-dsh-management');
  assert.deepEqual(contribution.descriptors.map(d=>d.method),Object.keys(expectedMethods));
  assert.deepEqual(Object.fromEntries(Object.entries(contribution.methods).map(([method,{tool}])=>[method,tool])),expectedMethods);
  for(const descriptor of contribution.descriptors){
-  assert.equal(descriptor.id,`dot-dsh-management#dotDshManagement/${descriptor.method}`);
+  assert.equal(descriptor.id,`@oxmumu3/dot-dsh-management#dotDshManagement/${descriptor.method}`);
   assert.equal(descriptor.namespace,'dotDshManagement');assert.equal(descriptor.service,'dotDshManagement');
   assert.equal(descriptor.parameters.length,1);assert.equal(descriptor.parameters[0].wire,'request');
   assert.equal(descriptor.parameters[0].codec.mode,'strict');
@@ -161,9 +161,9 @@ test('built client uses the official loader and only the scoped native bridge wi
  assert.deepEqual([...new Set(source.match(/http:\/\/127\.0\.0\.1:\d+[^'"`\s]*/g))],['http://127.0.0.1:31474/native/']);
  assert.match(source,/credentials:'omit'/);assert.match(source,/redirect:'error'/);
  let registration;runInNewContext(source,{window:{__ModuleLoader__:{load:value=>{registration=value;}}}});
- assert.equal(registration.id,'dot-dsh-management');assert.equal(typeof registration.factory,'function');
+ assert.equal(registration.id,'@oxmumu3/dot-dsh-management');assert.equal(typeof registration.factory,'function');
  const manifest=JSON.parse(await readFile(new URL('../management-plugin/package.json',import.meta.url),'utf8'));
- assert.equal(manifest.name,'dot-dsh-management');assert.equal(manifest.dsh.client.platform,'web');
+ assert.equal(manifest.name,'@oxmumu3/dot-dsh-management');assert.equal(manifest.dsh.client.platform,'web');
  assert.equal(manifest.exports['./client'],'./lib/client.js');
  assert.equal(manifest.exports['.'],'./index.js');
 });

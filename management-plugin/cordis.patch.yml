@@ -1,4 +1,4 @@
 - insert:
     - id: dot-dsh-management
-      name: dot-dsh-management
+      name: "@oxmumu3/dot-dsh-management"
       disabled: false
