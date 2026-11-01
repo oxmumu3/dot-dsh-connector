@@ -7,7 +7,7 @@ import {randomBytes} from 'node:crypto';
 import {createRequire} from 'node:module';
 import {pathToFileURL} from 'node:url';
 
-async function api(){const value=await import('../scripts/isolated-host.mjs').catch(()=>({}));assert.equal(typeof value.launchIsolatedHost,'function','narrow isolated host launcher required');return value;}
+async function api(){const value=await import('../scripts/isolated-host.mjs').catch(()=>({}));assert.equal(typeof value.launchIsolatedHost,'function','narrow isolated host launcher required');return {...value,openPublicSdk:options=>value.openPublicSdk({...options,sdkRoot:process.env.DSH_TEST_SDK_ROOT}),launchIsolatedHost:options=>value.launchIsolatedHost({...options,sdkRoot:process.env.DSH_TEST_SDK_ROOT})};}
 async function fixture(t){
  const home=await realpath(await mkdtemp(join(tmpdir(),'dot-dsh-narrow-host-'))),root=join(home,'public-fixture');await mkdir(root);await writeFile(join(root,'README.md'),'Public synthetic fixture; live Dot and real model acceptance unverified.');
  const oldHome=process.env.DSH_HOME,tokenEnv='DOT_DSH_NARROW_TEST_TOKEN',oldToken=process.env[tokenEnv];process.env.DSH_HOME=home;const token=randomBytes(32).toString('hex');process.env[tokenEnv]=token;
@@ -30,7 +30,7 @@ test('unsafe home, broad config, or disabled real configuration fails before nat
 });
 test('startup abort rolls back a late public SDK result before state or listener admission',async t=>{
  const f=await fixture(t);const {launchIsolatedHost}=await api();const controller=new AbortController();
- const pending=launchIsolatedHost({config:f.config,mode:'synthetic',signal:controller.signal});const timer=setTimeout(()=>controller.abort(),10);t.after(()=>clearTimeout(timer));
+ const pending=launchIsolatedHost({config:f.config,mode:'synthetic',signal:controller.signal});let timer;if(process.env.DSH_TEST_SDK_ROOT)controller.abort();else timer=setTimeout(()=>controller.abort(),10);t.after(()=>clearTimeout(timer));
  await assert.rejects(pending,error=>error.code==='ABORTED');await assert.rejects(access(f.config.stateDir));
 });
 test('public API-key adapter supports explicit fixed-endpoint options without mounting or resolving a key',async t=>{

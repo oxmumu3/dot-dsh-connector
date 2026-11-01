@@ -170,6 +170,19 @@ test('built client uses the official loader and only the scoped native bridge wi
 
 /** Temporary public npm distribution only, never application profile or user content. */
 async function nativeSdk(t){
+ if(process.env.DSH_TEST_SDK_ROOT){
+  const directory=await mkdtemp(join(tmpdir(),'dot-management-public-carrier-'));t.after(()=>rm(directory,{recursive:true,force:true}));
+  await symlink(join(resolve(process.env.DSH_TEST_SDK_ROOT),'node_modules'),join(directory,'node_modules'));
+  await writeFile(join(directory,'package.json'),JSON.stringify({type:'module',private:true}));
+  const require=createRequire(join(directory,'package.json'));
+  return {load:name=>import(pathToFileURL(require.resolve(name)).href),async loadManagement(){
+   const source=new URL('../management-plugin/',import.meta.url);
+   const copy=async(from,to)=>{await mkdir(to,{recursive:true});for(const entry of await(await import('node:fs/promises')).readdir(from,{withFileTypes:true})){if(entry.name==='node_modules')continue;const src=new URL(entry.name+(entry.isDirectory()?'/':''),from),dest=join(to,entry.name);if(entry.isDirectory())await copy(src,dest);else await writeFile(dest,await readFile(src));}};
+   await copy(source,join(directory,'management-plugin'));
+   return import(pathToFileURL(join(directory,'management-plugin/index.js')).href);
+  }};
+ }
+
  const source='/Applications/DeepSeek Harness.app/Contents/Resources/app.asar';
  try{await stat(source);}catch{t.skip('Public DSH 0.2.1-rc.2 native runtime unavailable');return;}
  const directory=await mkdtemp(join(tmpdir(),'dot-management-public-sdk-'));
@@ -208,7 +221,7 @@ async function nativeSdk(t){
   return {load:name=>import(pathToFileURL(require.resolve(name)).href),async loadManagement(){
    // Preserve the actual exported plugin lifecycle, resolving its public SDK
    // dependencies from this isolated distribution rather than any user profile.
-   const files=['index.js','src/remote.js','src/setup-runtime.js','src/onboarding-runtime.js','src/onboarding-store.js','src/onboarding-credentials.js','src/onboarding-tunnel.js','src/onboarding-tunnel-supervisor.js','src/onboarding-browser.js','runtime/src/python-runtime.js','package.json'];
+   const files=['index.js','src/compatibility.js','src/remote.js','src/setup-runtime.js','src/onboarding-runtime.js','src/onboarding-store.js','src/onboarding-credentials.js','src/onboarding-tunnel.js','src/onboarding-tunnel-supervisor.js','src/onboarding-browser.js','runtime/src/python-runtime.js','package.json'];
    for(const path of files){
     const destination=join(directory,'management-plugin',path);
     await mkdir(dirname(destination),{recursive:true});

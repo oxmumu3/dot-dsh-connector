@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import {VERIFIED_SDK_VERSIONS} from '../management-plugin/src/compatibility.js';
 // A separate, explicitly scoped process; never boots a Desktop/Web/base profile.
 import {z} from 'zod';
 import {mkdtemp,mkdir,open,readFile,writeFile,rm,realpath,stat} from 'node:fs/promises';
@@ -94,7 +95,7 @@ export async function launchIsolatedHost({config,mode='dry',apiKeyEnv,model,sdkR
  const aborted=()=>{void close().catch(()=>{});};signal?.addEventListener('abort',aborted,{once:true});
  try{
   sdk=await openPublicSdk({sdkRoot,realProvider:mode==='real'});assertOpen();
-  const require=createRequire(join(sdk.root,'package.json'));const sdkVersion=require('@deepseek-ai/dsh-agent/package.json').version;if(!['0.2.1-rc.2','0.2.1-rc.3'].includes(sdkVersion))throw failure('Public SDK version is not verified','SDK_UNAVAILABLE');for(const name of sdk.packages){const version=require(`${name}/package.json`).version;if(version!==(name==='@deepseek-ai/cordis'?'4.0.5':sdkVersion))throw failure('Public SDK exact version mismatch','SDK_UNAVAILABLE');}
+  const require=createRequire(join(sdk.root,'package.json'));const sdkVersion=require('@deepseek-ai/dsh-agent/package.json').version;if(!VERIFIED_SDK_VERSIONS.includes(sdkVersion))throw failure('Public SDK version is not verified','SDK_UNAVAILABLE');for(const name of sdk.packages){const version=require(`${name}/package.json`).version;if(version!==(name==='@deepseek-ai/cordis'?'4.0.5':sdkVersion))throw failure('Public SDK exact version mismatch','SDK_UNAVAILABLE');}
   const load=name=>import(pathToFileURL(require.resolve(name)).href);
   const [{Context},{default:Agents},{default:AgentLoop},{default:SystemPrompt},{default:Tools},{default:Llm,LlmAdapter,createUserMessage},{default:Sessions},{default:Projections},{default:DefaultModel},{createLaunchEnvironmentSnapshot}]=await Promise.all(KERNEL.map(load));assertOpen();
   ctx=new Context();

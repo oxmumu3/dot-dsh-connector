@@ -1,0 +1,27 @@
+{
+  "schemaVersion": 1,
+  "package": "@oxmumu3/dot-dsh-management",
+  "version": "0.6.0-preview.21",
+  "officialPackage": "@deepseek-ai/dsh",
+  "officialRepository": "deepseek-ai/deepseek-harness",
+  "verifiedSdks": [
+    "0.2.1-rc.2",
+    "0.2.1-rc.3",
+    "0.2.1-rc.4",
+    "0.2.1-rc.5"
+  ],
+  "latestOfficial": "0.2.1-rc.5",
+  "verifiedAt": "2026-11-01",
+  "node": ">=22.15",
+  "gates": [
+    "12-file compatibility suite with explicit public SDK carrier",
+    "official Host fresh local tarball install and active Remote",
+    "official registry freshness check"
+  ],
+  "limits": [
+    "Synthetic HOME and loopback only; no account authorization, real model, cloud tunnel or Dot acceptance."
+  ],
+  "knownUnsupported": {
+    "0.2.2-alpha.2": "Existing alpha channel; not admitted by engines or runtime preflight."
+  }
+}

@@ -1,13 +1,13 @@
 {
   "name": "dot-dsh-connector",
-  "version": "0.6.0-preview.20",
+  "version": "0.6.0-preview.21",
   "description": "Owner-only Dot to DeepSeek Harness connector with native management and metadata audit",
   "type": "module",
   "license": "MIT",
-  "author": "牛村木木山",
+  "author": "\u725b\u6751\u6728\u6728\u5c71",
   "engines": {
     "node": ">=22.15",
-    "dsh": "0.2.1-rc.2 || 0.2.1-rc.3"
+    "dsh": "0.2.1-rc.2 || 0.2.1-rc.3 || 0.2.1-rc.4 || 0.2.1-rc.5"
   },
   "exports": {
     ".": "./index.js",
@@ -31,7 +31,8 @@
     "third-party-licenses/",
     "test/",
     "npm-shrinkwrap.json",
-    "management-plugin/"
+    "management-plugin/",
+    "compatibility.json"
   ],
   "scripts": {
     "test": "node --max-old-space-size=128 --test --test-concurrency=1 test/*.test.mjs",
@@ -39,7 +40,8 @@
     "demo": "node scripts/demo.mjs",
     "build:management": "node scripts/build-management-ui.mjs",
     "preview:management": "node scripts/preview-management.mjs",
-    "build:plugin": "node scripts/build-management-package.mjs"
+    "build:plugin": "node scripts/build-management-package.mjs",
+    "check:compatibility": "node scripts/check-compatibility.mjs"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "1.32.1",
@@ -47,7 +49,7 @@
     "zod": "4.6.7"
   },
   "peerDependencies": {
-    "@deepseek-ai/dsh-llm": "0.2.1-rc.2 || 0.2.1-rc.3"
+    "@deepseek-ai/dsh-llm": "0.2.1-rc.2 || 0.2.1-rc.3 || 0.2.1-rc.4 || 0.2.1-rc.5"
   },
   "peerDependenciesMeta": {
     "@deepseek-ai/dsh-llm": {

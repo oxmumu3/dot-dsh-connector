@@ -11,6 +11,7 @@ export async function buildManagementPackage(){
  await writeFile(join(destination,'package.json'),JSON.stringify({private:true,type:'module'})+'\n');
  await copyFile(join(root,'THIRD_PARTY_NOTICES.md'),join(root,'management-plugin','THIRD_PARTY_NOTICES.md'));
  const licenses=join(root,'management-plugin','third-party-licenses');await mkdir(licenses,{recursive:true});for(const file of await readdir(join(root,'third-party-licenses')))await copyFile(join(root,'third-party-licenses',file),join(licenses,file));
+ await copyFile(join(root,'compatibility.json'),join(root,'management-plugin','compatibility.json'));
  const ui=await buildManagementUi();return{runtime_files:sources.filter(v=>v.endsWith('.js')).length+scripts.length+1,client_bytes:ui.bytes,client_sha256:ui.sha256};
 }
 if(process.argv[1]&&resolve(process.argv[1])===fileURLToPath(import.meta.url))process.stdout.write(JSON.stringify(await buildManagementPackage())+'\n');

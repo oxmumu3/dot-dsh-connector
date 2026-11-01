@@ -8,14 +8,15 @@ import {execFile} from 'node:child_process';
 import {createServer} from 'node:net';
 import {fileURLToPath} from 'node:url';
 import {z} from 'zod';
+import {VERIFIED_SDK_VERSIONS} from './compatibility.js';
 
 const ASAR='/Applications/DeepSeek Harness.app/Contents/Resources/app.asar';
-export const SUPPORTED={platform:'darwin',sdk:'0.2.1-rc.2',sdks:Object.freeze(['0.2.1-rc.2','0.2.1-rc.3']),python:'>=3.10',node:'>=22.15'};
+export const SUPPORTED={platform:'darwin',sdk:'0.2.1-rc.2',sdks:VERIFIED_SDK_VERSIONS,python:'>=3.10',node:'>=22.15'};
 const DEFAULT_PORTS={reader:0,gateway:0,admin:0,worker:0};
 const directory=z.string().refine(v=>isAbsolute(v)&&resolve(v)===v&&!v.includes('\0')&&!v.includes('\\'));
 const ports=z.strictObject(Object.fromEntries(Object.keys(DEFAULT_PORTS).map(k=>[k,z.number().int().min(0).max(65535)])));
 const configSchema=z.strictObject({version:z.literal(1),dshHome:directory,dataDir:directory,principal:z.string().regex(/^owner-[a-f0-9]{32}$/),ports,automaticPorts:z.boolean().default(false),requestedPorts:ports.optional(),activated:z.boolean().default(false),cloudHealthFile:directory.optional()});
-const MESSAGES={MCP_ENTRY_UNAVAILABLE:'本机 MCP 入口无法使用当前 Harness 的 Node 启动。请检查本机运行环境后重试。',UNSUPPORTED_RUNTIME:'当前仅支持 macOS、Harness 0.2.1-rc.2 或 0.2.1-rc.3、Node 22.15+ 和 Python 3.10+。',PROFILE_UNAVAILABLE:'未发现当前 Harness Desktop profile。请先完成 Harness 首次启动。',PRIVATE_STATE_REQUIRED:'连接器状态或凭据目录不是本人私有的规范路径。请检查诊断，不会自动修复或接管。',STATE_LOCKED:'此状态目录仍被占用，或锁信息无法核实。请检查原实例；不会接管活跃进程或异常锁。',SETUP_RUNNING:'请先停止本插件拥有的本机服务，再准备新的云端状态文件引用。',PORT_IN_USE:'连接器端口已被占用。现有外部部署请保留 tokenFile 模式；不会结束或接管该进程。',SETUP_REQUIRED:'请先准备本地连接。',LOCAL_START_FAILED:'本地服务启动失败；已关闭本次取得的资源。请检查运行环境和诊断。',CLOSED:'插件已关闭。请重新启用插件。'};
+const MESSAGES={MCP_ENTRY_UNAVAILABLE:'本机 MCP 入口无法使用当前 Harness 的 Node 启动。请检查本机运行环境后重试。',UNSUPPORTED_RUNTIME:'当前仅支持 macOS、Harness 0.2.1-rc.2、rc.3、rc.4 或 rc.5、Node 22.15+ 和 Python 3.10+。',PROFILE_UNAVAILABLE:'未发现当前 Harness Desktop profile。请先完成 Harness 首次启动。',PRIVATE_STATE_REQUIRED:'连接器状态或凭据目录不是本人私有的规范路径。请检查诊断，不会自动修复或接管。',STATE_LOCKED:'此状态目录仍被占用，或锁信息无法核实。请检查原实例；不会接管活跃进程或异常锁。',SETUP_RUNNING:'请先停止本插件拥有的本机服务，再准备新的云端状态文件引用。',PORT_IN_USE:'连接器端口已被占用。现有外部部署请保留 tokenFile 模式；不会结束或接管该进程。',SETUP_REQUIRED:'请先准备本地连接。',LOCAL_START_FAILED:'本地服务启动失败；已关闭本次取得的资源。请检查运行环境和诊断。',CLOSED:'插件已关闭。请重新启用插件。'};
 const failure=code=>Object.assign(new Error(MESSAGES[code]??MESSAGES.LOCAL_START_FAILED),{code});
 const safeError=error=>({code:Object.hasOwn(MESSAGES,error?.code)?error.code:'LOCAL_START_FAILED',message:MESSAGES[error?.code]??MESSAGES.LOCAL_START_FAILED});
 const uid=()=>typeof process.getuid==='function'?process.getuid():undefined;

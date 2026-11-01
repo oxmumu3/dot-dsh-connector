@@ -1,3 +1,15 @@
+# 0.6.0-preview.21 · Harness rc.4 / rc.5 compatibility candidate
+
+This local candidate extends exact package, optional SDK peer, managed preflight and isolated-launch allowlists from rc.2 / rc.3 to rc.4 / rc.5. It changes no account authorization, cloud tunnel, task execution or stored data behavior. Unknown rc.6 and stable versions remain rejected. The existing `0.2.2-alpha.2` channel is recorded as unsupported; a newly discovered version fails the publication freshness check until reviewed.
+
+Verified on 2026-11-01: the 12-file compatibility suite passes 150/150 on each of official 0.2.1-rc.2, rc.3, rc.4 and rc.5 (600 total; zero skips). Source export, package and gate regressions pass 18/18.
+
+The compatibility suite uses explicit official npm carriers, synthetic HOME/project/token fixtures and an OS network sandbox that permits only loopback. It covers actual Cordis/Typert loading, owner Remote requests, official client error parsing, legacy manager compatibility and actual AgentLoop turns with a deterministic synthetic provider. Installed Desktop/Electron, persisted codecs from the daily app, real accounts and browser authorization are outside this candidate's compatibility suite.
+
+Fresh official rc.4 / rc.5 Host installations admit the local tarball without overriding compatibility and load one active management plugin. Owner `setupStatus` returns managed mode, stopped local services and an unverified account; an external caller is denied. In the synthetic web profile, Desktop setup preflight is blocked as expected because no Desktop distribution/profile is provided. This proves install/load/Remote compatibility and does not prove Desktop setup completion, a real Dot call, account renewal, production dispatch or phone receipt.
+
+`compatibility.json` is copied into the native tarball. `npm run check` reconciles exact declarations and locks with live official npm discovery; a discovery error or unreviewed new version fails closed. `DSH_OFFICIAL_VERSIONS_FILE` is a deterministic test-fixture input and should not be set in the publication job. This candidate has not been pushed or published, and no workflow was edited or dispatched.
+
 # 0.6.0-preview.19 · Electron 持久会话读取修复
 
 本版补充修复 Electron 对 `app.asar` 的文件系统虚拟化：只对固定官方归档使用 `original-fs` 读取物理头，不改变进程全局 ASAR 设置。实际官方 Electron 执行持久会话测试 15/15，通过 v0/v4 正文、分页、残尾与符号链接拒绝校验；新增自动化子进程回归。preview.18 资产保持原样，当前安装入口指向 preview.19。

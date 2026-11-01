@@ -11,13 +11,13 @@ import tarfile
 from pathlib import Path, PurePosixPath
 
 ROOT_FILES = {'.gitignore', 'README.md', 'DESIGN.md', 'LICENSE', 'THIRD_PARTY_NOTICES.md',
-              'index.js', 'cordis.patch.yml', 'package.json', 'package-lock.json', 'npm-shrinkwrap.json'}
+              'index.js', 'cordis.patch.yml', 'compatibility.json', 'package.json', 'package-lock.json', 'npm-shrinkwrap.json'}
 ROOT_DIRS = {'src', 'scripts', 'test', 'docs', 'examples', 'fixtures', 'third-party-licenses', 'management-plugin'}
 EXCLUDED = {'.git', '.agent', '.dsh', 'node_modules', 'dist', 'coverage', '__pycache__', '.DS_Store'}
 PRIVATE_NAMES = {'runtime.key', 'admin.key', 'channel.key', 'state.json', 'browser-state.json',
                  'ego-binding.json', 'ego-binding-intent.json', 'health.url', 'setup.lock', 'runtime.lock'}
 GENERATED = {'management-plugin/runtime', 'management-plugin/third-party-licenses',
-             'management-plugin/THIRD_PARTY_NOTICES.md'}
+             'management-plugin/THIRD_PARTY_NOTICES.md', 'management-plugin/compatibility.json'}
 OMITTED_REPORTS = {'docs/test-results.tap', 'docs/demo-results.tap', 'docs/check-results.txt', 'docs/package-dry-run.json'}
 OMITTED_DEMO_IMAGES = {'docs/first-connection-demo/desktop.png', 'docs/first-connection-demo/workspace.png',
                        'docs/first-connection-demo/mobile-key.png'}
