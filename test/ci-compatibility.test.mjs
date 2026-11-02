@@ -24,3 +24,8 @@ test('reusable gate and release preserve source, permissions and artifact bindin
  assert.match(workflow,/cron:.*0 3,15 \* \* \*/);assert.doesNotMatch(workflow,/id-token:\s*write|secrets:\s*inherit/);
  assert.match(release,/uses: \.\/\.github\/workflows\/compatibility.yml/);assert.match(release,/needs: compatibility/);assert.match(release,/COMPATIBILITY_SOURCE_SHA/);assert.match(release,/source_commit.*GITHUB_SHA/);assert.match(release,/permissions:\n\s+id-token: write/);
 });
+
+test('runtime sandbox explicitly admits bind while preserving network and privilege isolation',async()=>{
+ const host=await readFile(new URL('../scripts/ci/run-host.mjs',import.meta.url),'utf8'),runner=await readFile(new URL('../scripts/ci/run-sandbox.py',import.meta.url),'utf8'),release=await readFile(new URL('../.github/workflows/npm-release.yml',import.meta.url),'utf8');
+ assert.ok(host.includes('(allow network-bind (local ip "localhost:*"))'));assert.ok(runner.includes('(allow network-bind (local ip "localhost:*"))'));assert.ok(runner.includes('--no-new-privs'));assert.ok(release.indexOf('Recheck official SDK discovery immediately before packing')<release.indexOf('Pack and validate the exact release artifact'));
+});

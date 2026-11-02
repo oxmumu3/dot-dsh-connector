@@ -68,6 +68,8 @@ jobs:
         run: |-
           npm run check
           node scripts/build-management-package.mjs
+      - name: Recheck official SDK discovery immediately before packing
+        run: node scripts/check-compatibility.mjs
       - name: Pack and validate the exact release artifact
         id: pack
         env:

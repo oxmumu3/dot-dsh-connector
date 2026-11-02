@@ -9,6 +9,8 @@ export function apply(ctx,config){
    const bundle=bundles.find(item=>item.name===config.package),plugin=plugins.find(item=>item.moduleName===config.package);
    assert.equal(bundle?.version,config.version);assert.equal(bundle?.enabled,true);assert.equal(plugin?.fiberPhase,'active');
    result.bundle={version:bundle.version,enabled:bundle.enabled,phase:plugin.fiberPhase};
+   const listeners=process._getActiveHandles().filter(handle=>typeof handle.address==='function'&&typeof handle.getConnections==='function').map(handle=>handle.address()).filter(address=>address&&typeof address==='object');
+   assert.ok(listeners.some(address=>address.address==='127.0.0.1'),'Own Host has no loopback listener');assert.ok(listeners.every(address=>['127.0.0.1','::1'].includes(address.address)),'Own Host bound an unexpected interface');result.listenAddresses=[...new Set(listeners.map(address=>address.address))];
    const peer={principal:{kind:'owner'},signal:new AbortController().signal,interactions:'none'};
    const value=await ctx.typertGateway.invoke({namespace:'dotDshManagement',method:'setupStatus',args:{request:{}},peer});
    assert.equal(value.mode,'managed');assert.equal(value.services.reader,'stopped');assert.equal(value.services.manager,'stopped');assert.equal(value.account.state,'unverified');

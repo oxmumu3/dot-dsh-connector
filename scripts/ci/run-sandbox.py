@@ -31,11 +31,11 @@ def main():
         inner = [sys.executable, str(Path(__file__).resolve()), '--inside', '--sdk', args.sdk, '--carrier', str(Path(args.carrier).resolve()), '--out', str(out), '--node', str(Path(args.node).resolve()), '--official', str(Path(args.official).resolve())]
         if sys.platform == 'darwin':
             profile = out / 'network.sb'
-            profile.write_text('(version 1)\n(allow default)\n(deny network*)\n(allow network-inbound (local ip "localhost:*"))\n(allow network-outbound (remote ip "localhost:*"))\n(deny file-read* file-write* (subpath "/Applications"))\n(deny process-exec (subpath "/Applications"))\n')
+            profile.write_text('(version 1)\n(allow default)\n(deny network*)\n(allow network-bind (local ip "localhost:*"))\n(allow network-inbound (local ip "localhost:*"))\n(allow network-outbound (remote ip "localhost:*"))\n(deny file-read* file-write* (subpath "/Applications"))\n(deny process-exec (subpath "/Applications"))\n')
             command = ['/usr/bin/sandbox-exec', '-f', str(profile), *inner]
         elif sys.platform == 'linux':
             # Only fixed system tools run as root. Drop UID/GID before repository code.
-            setup = 'set -eu\n/usr/sbin/ip link set lo up\ntask_uid=$1\ntask_gid=$2\nshift 2\nexec /usr/bin/setpriv --reuid "$task_uid" --regid "$task_gid" --clear-groups "$@"'
+            setup = 'set -eu\n/usr/sbin/ip link set lo up\ntask_uid=$1\ntask_gid=$2\nshift 2\nexec /usr/bin/setpriv --reuid "$task_uid" --regid "$task_gid" --clear-groups --no-new-privs "$@"'
             command = ['sudo', '-n', '--', '/usr/bin/unshare', '--net', '--', '/bin/sh', '-c', setup, 'dsh-ci-netns', str(os.getuid()), str(os.getgid()), *inner]
         else:
             raise RuntimeError('No supported hard network sandbox; refusing unsandboxed tests')
