@@ -1,0 +1,16 @@
+# Management compatibility CI implementation plan
+
+Goal: block stale npm publication using the exact reviewed SDK list, public SDK contracts and an isolated official Host smoke test.
+
+Architecture: a reusable workflow discovers official versions and validates compatibility.json, expands verifiedSdks into independent Linux jobs, and runs an official Host smoke on macOS for the latest reviewed SDK. npm-release.yml waits for this workflow and checks its exact source commit before packing. Only its existing publish job receives OIDC.
+
+Tech stack: Node 22.22, npm 11.15, Python standard library, Linux network namespace, macOS sandbox-exec, pinned GitHub Actions.
+
+1. Add CI-only regression tests first: fail missing helpers, reject unknown versions, preserve exact SDK metadata, exclude credentials from child environments, and assert reusable-workflow/publication source binding. Run `node --test test/ci-compatibility.test.mjs`; expect failure before helpers exist.
+2. Add scripts/ci/compatibility.mjs: `discover --out DIR` writes minimal official discovery and matrix outputs; `prepare --sdk VERSION --carrier DIR [--host]` installs public packages without hooks under synthetic HOME; `test --sdk VERSION --carrier DIR --out DIR --official FILE` invokes the hard sandbox runner; `host --sdk VERSION --carrier DIR --out DIR` packs and installs into an isolated official web Host. All SDK arguments must appear in compatibility.json.
+3. Add scripts/ci/run-sandbox.py, preload.mjs and network-proof.mjs. macOS denies non-loopback and /Applications access. Linux runs in a fresh privileged-created network namespace, enables loopback and drops back to the runner UID before any repository code executes. The inner runner supplies only PATH, synthetic HOME/DSH paths and fixture references, asserts a real loopback roundtrip and a denied outbound socket, and rejects missing/failed/skipped suites. No fallback to unsandboxed execution.
+4. Add generic host-observer.mjs and run-host.mjs adapted from the accepted local Host proof. Package acquisition is separate from sandboxed Host runtime. No daily app paths or cache links; no real account/model/cloud tools. Report blocked Desktop setup as an explicit web-fixture boundary.
+5. Add .github/workflows/compatibility.yml with push/PR/manual/workflow_call and twice-daily cron, read-only jobs, manifest-driven matrix, pinned actions and bounded concurrency/timeouts. Add reusable dependency and source SHA assertion to npm-release.yml. Preserve the isolated artifact-only OIDC job and original source/run/artifact digest checks.
+6. Run helper/workflow regression tests, parse both YAML files, run `test` with recorded official discovery and an existing rc.5 public carrier, and run macOS `host` using the same carrier. Run git diff --check, confirm no product version/runtime files changed and frozen candidate/artifact hashes are unchanged; commit locally only.
+
+Self-review: all SDK admission remains exact and unchanged. knownUnsupported alpha is observed but never installed by the matrix. Unavailable discovery fails; new official releases fail before testing/publication. Linux results never represent Desktop onboarding. No publication or auth action is part of this plan. Inline execution is already authorized by the parent; no subagents are used.
