@@ -26,6 +26,11 @@ export async function runHost({root,carrier,sdk,out,cleanEnvironment,pnpm,offlin
  const install=await run(process.execPath,[cli,'plugin','--profile','web','add',...offline?['--offline']:[],'--ignore-scripts',tarball],{cwd:project,env,timeout:240000,maxBuffer:4*1024*1024});await writeFile(join(out,'install.log'),safeLog(install.stdout)+safeLog(install.stderr));
  const profile=JSON.parse(await readFile(join(env.DSH_HOME,'profiles/web/package.json'),'utf8')),thirdParty=Object.keys(profile.dependencies??{}).filter(name=>!name.startsWith('@deepseek-ai/'));
  assert.deepEqual(thirdParty,['@oxmumu3/dot-dsh-management']);
+ const installedPackageRoot=join(env.DSH_HOME,'profiles/web/node_modules',packed[0].name),installedMembers=[];
+ for(const file of packed[0].files){const expected=await readFile(join(root,'management-plugin',file.path)),actual=await readFile(join(installedPackageRoot,file.path));assert.deepEqual(actual,expected,'Installed package drift: '+file.path);installedMembers.push({path:file.path,sha256:createHash('sha256').update(actual).digest('hex')});}
+ const runtimeLoaderSha256=installedMembers.find(file=>file.path==='runtime/src/harness-storage.js').sha256;
+ await writeFile(join(out,'installed-byte-proof.json'),JSON.stringify({installedPackageRoot,allPackedFilesMatch:true,files:installedMembers},null,2)+'\n');
+
  const sandbox=join(out,'network.sb');await writeFile(sandbox,'(version 1)\n(allow default)\n(deny network*)\n(allow network-bind (local ip "localhost:*"))\n(allow network-inbound (local ip "localhost:*"))\n(allow network-outbound (remote ip "localhost:*"))\n(deny file-read* file-write* (subpath "/Applications"))\n(deny process-exec (subpath "/Applications"))\n');
  const network=await run('/usr/bin/sandbox-exec',['-f',sandbox,process.execPath,join(here,'network-proof.mjs')],{cwd:project,env,timeout:10000,maxBuffer:65536});const networkProof=JSON.parse(network.stdout);await writeFile(join(out,'network-proof.json'),JSON.stringify(networkProof,null,2)+'\n');
  const patch=join(directory,'proof.patch.yml');await writeFile(patch,JSON.stringify([{insert:[{id:'management-ci-host-proof',name:pathToFileURL(join(here,'host-observer.mjs')).href,config:{package:packed[0].name,version:packed[0].version}}]}]));
@@ -38,6 +43,6 @@ export async function runHost({root,carrier,sdk,out,cleanEnvironment,pnpm,offlin
   if(child.exitCode===null&&child.signalCode===null)await new Promise(resolve=>{const timer=setTimeout(()=>child.kill('SIGKILL'),10000);child.once('exit',()=>{clearTimeout(timer);resolve();});child.kill('SIGTERM');});
   await writeFile(join(out,'host.log'),safeLog(hostOut)+safeLog(hostErr));
  }
- result={...result,sdk,tarballSha256:createHash('sha256').update(await readFile(tarball)).digest('hex'),network:networkProof,thirdParty,onlyOwnHostExited:true,productionProfileUsed:false,compatibilityOverride:false,realAuthorizationCompleted:false,realModelCalled:false,realDotTaskVerified:false,desktopOnboardingVerified:false,packageAcquisitionOutsideSandbox:true};
+ result={...result,sdk,installedPackageRoot,runtimeLoaderSha256,installedFileCount:installedMembers.length,tarballSha256:createHash('sha256').update(await readFile(tarball)).digest('hex'),network:networkProof,thirdParty,onlyOwnHostExited:true,productionProfileUsed:false,compatibilityOverride:false,realAuthorizationCompleted:false,realModelCalled:false,realDotTaskVerified:false,desktopOnboardingVerified:false,packageAcquisitionOutsideSandbox:true};
  await writeFile(join(out,'host-proof.json'),JSON.stringify(result,null,2)+'\n');console.log(JSON.stringify(result));assert.equal(result.passed,true,result.error);
 }

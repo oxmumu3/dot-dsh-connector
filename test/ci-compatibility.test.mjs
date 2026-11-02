@@ -9,7 +9,7 @@ test('matrix follows the exact reviewed manifest and refuses unknown SDK input',
 });
 test('carriers pin actual public contracts and all admitted package versions',()=>{
  const deps=carrierDependencies('0.2.1-rc.5',manifest);
- for(const name of ['dsh-agent-loop','dsh-api-gateway','dsh-client-connection','dsh-typert-registry'])assert.equal(deps['@deepseek-ai/'+name],'0.2.1-rc.5');
+ for(const name of ['dsh-agent-loop','dsh-api-gateway','dsh-client-connection','dsh-typert-registry','dsh-session-format-v0-to-v1','dsh-session-format-v1-to-v2','dsh-session-format-v2-to-v3','dsh-session-format-v3-to-v4'])assert.equal(deps['@deepseek-ai/'+name],'0.2.1-rc.5');
  assert.equal(deps['@deepseek-ai/cordis'],'4.0.5');assert.equal(deps['@deepseek-ai/dsh'],undefined);
  assert.equal(carrierDependencies('0.2.1-rc.5',manifest,true)['@deepseek-ai/dsh'],'0.2.1-rc.5');
  assert.equal(carrierDependencies('0.2.1-rc.5',manifest,true).pnpm,'11.28.5');

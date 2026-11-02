@@ -3,7 +3,7 @@ import argparse, json, os, re, signal, subprocess, sys, tempfile, shutil
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-SUITE = ['compatibility-gate', 'runtime-compatibility', 'native-loop', 'executor', 'isolated-host', 'management-native', 'management-compat', 'management', 'management-host', 'management-ui', 'management-bridge', 'management-errors']
+SUITE = ['compatibility-gate', 'runtime-compatibility', 'native-loop', 'executor', 'isolated-host', 'management-native', 'management-compat', 'management', 'management-host', 'management-ui', 'management-bridge', 'management-errors', 'codec-compatibility']
 
 def bounded(command, env, log, timeout):
     with log.open('w') as stream:
@@ -51,7 +51,7 @@ def main():
     text = log.read_text(); counts = {key: int(value) for key, value in re.findall(r'^# (tests|pass|fail|skipped|cancelled) (\d+)$', text, re.M)}
     result = {'sdk': args.sdk, 'platform': sys.platform, 'counts': counts, 'suiteFiles': test_files, 'network': json.loads(proof.read_text()), 'syntheticHome': True, 'dailyDesktopUsed': False, 'desktopOnboardingVerified': False}
     (out / 'contracts-proof.json').write_text(json.dumps(result, indent=2) + '\n'); print(json.dumps(result), flush=True)
-    assert status == 0 and counts.get('tests', 0) >= 150 and counts.get('pass') == counts.get('tests') and counts.get('fail') == 0 and counts.get('skipped') == 0 and counts.get('cancelled') == 0, 'Public SDK contract suite failed, incomplete, or skipped'
+    assert status == 0 and counts.get('tests', 0) >= 156 and counts.get('pass') == counts.get('tests') and counts.get('fail') == 0 and counts.get('skipped') == 0 and counts.get('cancelled') == 0, 'Public SDK contract suite failed, incomplete, or skipped'
     return 0
 
 if __name__ == '__main__':

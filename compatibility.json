@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "package": "@oxmumu3/dot-dsh-management",
-  "version": "0.6.0-preview.21",
+  "version": "0.6.0-preview.22",
   "officialPackage": "@deepseek-ai/dsh",
   "officialRepository": "deepseek-ai/deepseek-harness",
   "verifiedSdks": [
@@ -14,7 +14,7 @@
   "verifiedAt": "2026-11-01",
   "node": ">=22.15",
   "gates": [
-    "12-file compatibility suite with explicit public SDK carrier",
+    "13-file compatibility suite with explicit public SDK carrier and real persisted codec reads",
     "official Host fresh local tarball install and active Remote",
     "official registry freshness check"
   ],

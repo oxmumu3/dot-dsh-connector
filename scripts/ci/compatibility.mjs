@@ -9,7 +9,7 @@ import {createHash} from 'node:crypto';
 import {validateCompatibility} from '../check-compatibility.mjs';
 
 const root=fileURLToPath(new URL('../../',import.meta.url)),run=promisify(execFile);
-const contracts=['dsh-agent','dsh-agent-loop','dsh-system-prompt','dsh-tools','dsh-llm','dsh-session','dsh-session-projection','dsh-agent-default-model','dsh-launch-environment','dsh-typert-protocol','dsh-typert-registry','dsh-api-gateway','dsh-client-connection','dsh-llm-deepseek-api-key'];
+const contracts=['dsh-agent','dsh-agent-loop','dsh-system-prompt','dsh-tools','dsh-llm','dsh-session','dsh-session-projection','dsh-agent-default-model','dsh-launch-environment','dsh-typert-protocol','dsh-typert-registry','dsh-api-gateway','dsh-client-connection','dsh-llm-deepseek-api-key','dsh-session-format-v0-to-v1','dsh-session-format-v1-to-v2','dsh-session-format-v2-to-v3','dsh-session-format-v3-to-v4'];
 export function assertSdk(version,manifest){assert.ok(manifest.verifiedSdks.includes(version)&&/^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/.test(version),'unverified SDK: '+version);return version;}
 export function workflowMatrix(manifest){assert.ok(manifest.verifiedSdks.length>0&&manifest.verifiedSdks.length<=12);assert.equal(new Set(manifest.verifiedSdks).size,manifest.verifiedSdks.length);return{sdk:manifest.verifiedSdks.map(version=>assertSdk(version,manifest))};}
 export function carrierDependencies(version,manifest,host=false){assertSdk(version,manifest);return{...Object.fromEntries(contracts.map(name=>['@deepseek-ai/'+name,version])),'@deepseek-ai/cordis':'4.0.5',zod:'4.6.7','@modelcontextprotocol/sdk':'1.32.1','playwright-core':'1.64.1',...host?{'@deepseek-ai/dsh':version,pnpm:'11.28.5'}:{}};}
