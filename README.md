@@ -1,5 +1,7 @@
 # Dot → Harness 插件
 
+📖 设计思考与生态复盘：[《DeepSeek Harness 要走向极客玩具还是大众普惠？》](https://mp.weixin.qq.com/s/RIAYNqo8OsUVx2JpR8MPyA)
+
 当前候选版本为 `0.6.0-preview.22`（预发布版）。本版修复已声明兼容的 Harness rc.4 / rc.5 在持久会话 codec 加载时仍被旧白名单拒绝的问题；保留 rc.2 / rc.3 和精确版本限制。官方 codec 的合成记录解码与未知/混合 SDK 拒绝测试，独立于隔离 Host 安装验证。真实 Dot 授权、账号续期、云端派发和手机验收仍不在本次范围；实测范围见[验收记录](docs/verification.md)。
 
 让你的 Dot 读取 DeepSeek Harness 项目、查看已保存的会话，并给 Harness 派任务、继续任务、查看结果。任务使用你当前 Harness 的模型、工具和审批设置，可以修改项目文件、运行命令。
