@@ -1,3 +1,7 @@
+# 0.6.0-preview.23 · Reviewed alpha discovery
+
+This maintenance release records exact official `0.2.2-alpha.3` as unsupported while keeping rc.2 through rc.5 admission. Unknown new releases and unsupported versions promoted to `latest` continue to fail closed. See the [review and local verification](compatibility-alpha-2026-11-03.md). Hosted publication receipts are recorded by the release workflow and GitHub release; this local ledger is not itself a publication receipt.
+
 # 0.6.0-preview.22 · Persisted codec compatibility candidate
 
 Preview.21 declared Harness rc.4 / rc.5 support but its separate physical-codec loader still admitted only rc.2 / rc.3. Preview.22 extends that loader to the same four exact versions, and validates copied nested SDK package metadata as well as top-level packages. Unknown versions and mixed SDK graphs remain rejected. Runtime deadlines, owner checks, descriptor-safe reads and private-state handling are unchanged.

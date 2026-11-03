@@ -5,7 +5,7 @@ import {carrierDependencies,cleanEnvironment,assertSdk,workflowMatrix} from '../
 const manifest=JSON.parse(await readFile(new URL('../compatibility.json',import.meta.url),'utf8'));
 test('matrix follows the exact reviewed manifest and refuses unknown SDK input',()=>{
  assert.deepEqual(workflowMatrix(manifest),{sdk:manifest.verifiedSdks});
- for(const version of ['0.2.1-rc.6','0.2.2-alpha.2','latest','rc.5'])assert.throws(()=>assertSdk(version,manifest),/unverified SDK/);
+ for(const version of ['0.2.1-rc.6','0.2.2-alpha.2','0.2.2-alpha.3','0.2.2-alpha.4','latest','rc.5'])assert.throws(()=>assertSdk(version,manifest),/unverified SDK/);
 });
 test('carriers pin actual public contracts and all admitted package versions',()=>{
  const deps=carrierDependencies('0.2.1-rc.5',manifest);

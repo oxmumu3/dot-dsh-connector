@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "package": "@oxmumu3/dot-dsh-management",
-  "version": "0.6.0-preview.22",
+  "version": "0.6.0-preview.23",
   "officialPackage": "@deepseek-ai/dsh",
   "officialRepository": "deepseek-ai/deepseek-harness",
   "verifiedSdks": [
@@ -22,6 +22,7 @@
     "Synthetic HOME and loopback only; no account authorization, real model, cloud tunnel or Dot acceptance."
   ],
   "knownUnsupported": {
-    "0.2.2-alpha.2": "Existing alpha channel; not admitted by engines or runtime preflight."
+    "0.2.2-alpha.2": "Existing alpha channel; not admitted by engines or runtime preflight.",
+    "0.2.2-alpha.3": "Reviewed 2026-11-03: official alpha channel; latest/next remain 0.2.1-rc.5. Not admitted by engines, runtime preflight or the verified SDK matrix."
   }
 }

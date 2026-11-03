@@ -8,7 +8,7 @@
 
 在 Harness 新建会话，选择「创造模式」，粘贴：
 
-> 请使用插件管理工具安装并启用这个 Dot → Harness 插件：https://github.com/oxmumu3/dot-dsh-connector/releases/download/v0.6.0-preview.19/dot-dsh-management-0.6.0-preview.19.tgz 。保留已有连接、配置和任务。安装成功后告诉我打开侧栏「Dot 连接」；首次使用点击「连接我的 Dot」，按提示登录自己的账号并确认授权，原有连接继续沿用。
+> 请使用插件管理工具安装并启用这个 Dot → Harness 插件：https://github.com/oxmumu3/dot-dsh-connector/releases/download/v0.6.0-preview.23/oxmumu3-dot-dsh-management-0.6.0-preview.23.tgz 。保留已有连接、配置和任务。安装成功后告诉我打开侧栏「Dot 连接」；首次使用点击「连接我的 Dot」，按提示登录自己的账号并确认授权，原有连接继续沿用。
 
 如提示安装审批，核对后确认。只安装 `dot-dsh-management` 这一个原生插件即可；不需要另装仓库根包、运行终端命令或创建 DeepSeek 模型 API key。
 

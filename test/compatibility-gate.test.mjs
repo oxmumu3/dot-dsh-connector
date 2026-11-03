@@ -13,4 +13,13 @@ test('empty or malformed official SDK discovery cannot be treated as no change',
  for(const value of [null,{}, {...official,versions:[]},{...official,name:'third-party'},{...official,'dist-tags':{}}])await assert.rejects(validateCompatibility({root,official:value}),/official SDK discovery/);
 });
 
-test('recorded alpha stays unsupported while discovery remains reviewable',async()=>{const result=await validateCompatibility({root,official:{...official,versions:[...official.versions,'0.2.2-alpha.2']}});assert.equal(result.verifiedSdks.includes('0.2.2-alpha.2'),false);await assert.rejects(validateCompatibility({root,official:{...official,versions:[...official.versions,'0.2.2-alpha.3']}}),/unverified official SDK/);});
+test('reviewed alpha releases remain unsupported without blocking the verified latest channel',async()=>{
+ const alphas=['0.2.2-alpha.2','0.2.2-alpha.3'];
+ const result=await validateCompatibility({root,official:{...official,versions:[...official.versions,...alphas],'dist-tags':{...official['dist-tags'],alpha:'0.2.2-alpha.3'}}});
+ assert.equal(result.latestOfficial,'0.2.1-rc.5');
+ for(const version of alphas)assert.equal(result.verifiedSdks.includes(version),false);
+});
+test('an unreviewed alpha still fails closed and reviewed alphas cannot become latest',async()=>{
+ await assert.rejects(validateCompatibility({root,official:{...official,versions:[...official.versions,'0.2.2-alpha.4']}}),/unverified official SDK 0\.2\.2-alpha\.4/);
+ for(const version of ['0.2.2-alpha.2','0.2.2-alpha.3'])await assert.rejects(validateCompatibility({root,official:{...official,versions:[...official.versions,version],'dist-tags':{latest:version}}}),/unverified official SDK/);
+});

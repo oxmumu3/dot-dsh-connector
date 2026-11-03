@@ -54,7 +54,7 @@ Harness Desktop 需保持运行，管理页可以关闭。插件只启停自己�
 
 ## 构建与验证
 
-`compatibility.json` 记录精确 SDK 边界；已知 alpha `0.2.2-alpha.2` 仍不支持。源码 `npm run check` 会核对声明、锁文件与官方 npm 版本，发现未审核的新版本或无法读取官方版本时失败。公开 SDK 回归用 `DSH_TEST_SDK_ROOT` 指向隔离 npm 分发目录；不读取日常 Host。
+`compatibility.json` 记录精确 SDK 边界；已审阅的 alpha `0.2.2-alpha.2` / `0.2.2-alpha.3` 仍不支持。源码 `npm run check` 会核对声明、锁文件与官方 npm 版本，发现未审核的新版本或无法读取官方版本时失败。公开 SDK 回归用 `DSH_TEST_SDK_ROOT` 指向隔离 npm 分发目录；不读取日常 Host。
 
 在源码根目录运行 `npm run build:plugin`，然后 `npm pack ./management-plugin --pack-destination ./dist`。构建生成原生客户端、内嵌服务源码及许可证，前端使用 Harness 自带 React、Zod 和页面插槽。依赖由正常插件安装流程安装。
 
