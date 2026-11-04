@@ -20,7 +20,7 @@ test('child processes receive synthetic paths without inherited keys or GitHub t
 });
 test('reusable gate and release preserve source, permissions and artifact binding',async()=>{
  const workflow=await readFile(new URL('../.github/workflows/compatibility.yml',import.meta.url),'utf8'),release=await readFile(new URL('../.github/workflows/npm-release.yml',import.meta.url),'utf8');
- for(const text of ['workflow_call:','pull_request:','schedule:','verified','fromJSON','macos-14','ubuntu-24.04'])assert.ok(workflow.includes(text),text);
+ for(const text of ['workflow_call:','pull_request:','schedule:','verified','fromJSON','macos-15-intel','ubuntu-24.04'])assert.ok(workflow.includes(text),text);
  assert.match(workflow,/cron:.*0 3,15 \* \* \*/);assert.doesNotMatch(workflow,/id-token:\s*write|secrets:\s*inherit/);
  assert.match(release,/uses: \.\/\.github\/workflows\/compatibility.yml/);assert.match(release,/needs: compatibility/);assert.match(release,/COMPATIBILITY_SOURCE_SHA/);assert.match(release,/source_commit.*GITHUB_SHA/);assert.match(release,/permissions:\n\s+id-token: write/);
 });

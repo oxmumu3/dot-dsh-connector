@@ -20,7 +20,7 @@
     "docs/first-connection-demo/workspace.png"
   ],
   "files": {
-    ".github/workflows/compatibility.yml": "5ff2de3d816239d1d9ea5fd34d1349b695c30f05a17eb938d0aa57d72e3a616c",
+    ".github/workflows/compatibility.yml": "fdd8f3f3e9687b51546db181a7c95e3ad6ca2b0c07921c61b63a9153f9af4c19",
     ".github/workflows/npm-release.yml": "a34940308874711baffedef05b2f0c6e91dd56d48004693d7d44369d70a57a76",
     ".gitignore": "ece36e0bdf50ac1d08be14790bdab4ee9cd93d79dabb625217a46805f8bbc2ae",
     "DESIGN.md": "a54683fffa0964275061162b4a34449f8bdfca88018e3d209ac5dcd2d9de5d87",
@@ -66,7 +66,7 @@
     "fixtures/public-project/README.md": "009ec8ddc667c6e69152285b834d559d66838174c31142645fc448e88b60df25",
     "index.js": "470ac5c0bfc19cba8d866071d057dc7fb15297e4b2c96e30353153fc4ec8ca98",
     "management-plugin/LICENSE": "d444f478ac3b5f43cd53e2c92f0bf8cf844e6e84174d95eaedb6e57d646ae19b",
-    "management-plugin/README.md": "1ccbeb325651a6ff295e1eec2e11803b332a41622a2ba70509b9e2a5200faa69",
+    "management-plugin/README.md": "3fbe6de32f5b8624eb4d1148194f5b2a0fba49b3e53ac24fa9e2fb0770002deb",
     "management-plugin/cordis.patch.yml": "d89905701c475b865b9268afd34868968b5b6641afd489cd7e08d1715575bdaf",
     "management-plugin/index.js": "fdc16e0e0ed1341e3f486801821f12ccf2c8765b40bc5714e6d9f32ee503a8fb",
     "management-plugin/lib/client.js": "e63403d3ad11599c5016d5cd5ad727d7113f0d5afc1796f3d80f376a9ceb27fd",
@@ -135,7 +135,7 @@
     "src/python-runtime.js": "6e12d52a42d0e5a856ebd72cb7d70695aa287283612180ed3bd113d2abfe36b2",
     "src/store.js": "f5aff04222893ed37066914158806f4ff3a26b4ed6f9a6ea28bf6b8fc91f8097",
     "test/audit-store.test.mjs": "d3b720838ac5b45aa332f82093ddffb02397d8194a332df39004ff2b83e6d56d",
-    "test/ci-compatibility.test.mjs": "15ca2030dec12639c439d68f0e97cbfdc735526303845b5607b5049c6827bd15",
+    "test/ci-compatibility.test.mjs": "3a6dcbb21f5427b15182de223f856ce1c96ffd94ed4ce8ecac9203053355d5eb",
     "test/cloud-status.test.mjs": "cfa8e44799d8c59bf9a9ae892506d1ca4b10cab418f576c9a618cdd726e66e9e",
     "test/codec-compatibility.test.mjs": "4b9a0beb186fe5f7eeec24b624c6f480d010a9cd27bdfe9af478883f1b88e269",
     "test/compatibility-gate.test.mjs": "2f3b7bc8da0b7c3eac6980eff9993b44a34d58e9d1124d25e9ea901b40fe3ca8",
