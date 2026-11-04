@@ -20,7 +20,7 @@
     "docs/first-connection-demo/workspace.png"
   ],
   "files": {
-    ".github/workflows/compatibility.yml": "fdd8f3f3e9687b51546db181a7c95e3ad6ca2b0c07921c61b63a9153f9af4c19",
+    ".github/workflows/compatibility.yml": "f463219e2885592dcf155330aa19110ee2bd80b00ed8720070dc5d93bf1eb7d6",
     ".github/workflows/npm-release.yml": "a34940308874711baffedef05b2f0c6e91dd56d48004693d7d44369d70a57a76",
     ".gitignore": "ece36e0bdf50ac1d08be14790bdab4ee9cd93d79dabb625217a46805f8bbc2ae",
     "DESIGN.md": "a54683fffa0964275061162b4a34449f8bdfca88018e3d209ac5dcd2d9de5d87",
@@ -103,6 +103,7 @@
     "scripts/ci/preload.mjs": "857aa4b3426b018d7649380d38c032bc92a08df0a036de3a72fa63c25fb1863b",
     "scripts/ci/run-host.mjs": "05161f070557bbe958c37f67d47a38140ac1f0aeca3da0573f16f83a626ef027",
     "scripts/ci/run-sandbox.py": "9fc14023984141a5c8f58a92b1ae3d7c10b200adea515ce30c3acd1eaafe5e8d",
+    "scripts/ci/verify-host-matrix.mjs": "751a984ce54e31a8a2d89c5c55805dc2d137b87bee3cc5056e48990feceecff1",
     "scripts/demo.mjs": "90104402c7a030c4f83916f517de0c5ca7111bcdf41f619bf302372064ad9e63",
     "scripts/harness-read.mjs": "1b691a89f37d718b1f2e5e8619960c0e61cb6d88275a77b2365cb4c065b6ef3c",
     "scripts/isolated-host.mjs": "8290ed33e18a31f5b9540db8962faf790983737883226c9e3f3711c1588047a2",
@@ -149,6 +150,7 @@
     "test/harness-read-host.test.mjs": "9dcd2fd0d56d85b1da5ff091ff6402d098e7f5fa47b71322e7527d420478813b",
     "test/harness-reader.test.mjs": "b604211be622a1e60b04756fa5691066c5c58e4e5c563fdc88b6be2bb7a72799",
     "test/harness-storage.test.mjs": "fe12cf5a146d4d55a164fa008b9c02dc40f0ffe9a06e7e4690952cb9bcffe57e",
+    "test/host-matrix-proof.test.mjs": "e610528373ba1aeddae55bc61ca811f1f1f296ec0634f92d05db560dbb2dcfd1",
     "test/integration.test.mjs": "59ef0e1c88cc2667b125f2873d527fc090814da29a95d10db4e31bd42b2a2aa1",
     "test/isolated-host.test.mjs": "78f4c8917a67888855b8e3176075129039cabeb40f60f8ec07b49335c6c0584e",
     "test/management-bridge.test.mjs": "024cefa181dba25ec844f87357ad75d8d504aeb93f0e1004a5dd40087988e208",
