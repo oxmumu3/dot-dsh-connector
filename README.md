@@ -2,7 +2,7 @@
 
 设计思考与生态复盘：[《DeepSeek Harness 要走向极客玩具还是大众普惠？》](https://mp.weixin.qq.com/s/RIAYNqo8OsUVx2JpR8MPyA)
 
-当前修复候选为 `0.6.0-preview.24`，正在补齐官方 Harness Desktop `0.2.2-rc.1` 的兼容验证，并保留 `0.2.1-rc.2` / `rc.3` / `rc.4` / `rc.5`。候选尚未发布；只有精确 SDK 回归、官方隔离 Host 安装与启停检查通过后，才会更新 npm `latest`。此前的连接、任务与持久会话读取修复继续保留；实测范围见[验收记录](docs/verification.md)。
+当前版本 `0.6.0-preview.24` 已发布到 npm `latest`，兼容官方 Harness Desktop `0.2.2-rc.1`，并保留 `0.2.1-rc.2` / `rc.3` / `rc.4` / `rc.5`。此前的连接、任务与持久会话读取修复继续保留；实测范围见[验收记录](docs/verification.md)。
 
 让你的 Dot 读取 DeepSeek Harness 项目、查看已保存的会话，并给 Harness 派任务、继续任务、查看结果。任务使用你当前 Harness 的模型、工具和审批设置，可以修改项目文件、运行命令。
 
@@ -12,7 +12,9 @@
 
 在 Harness 会话中发送下面这句话：
 
-> 请使用 Harness 的官方插件管理工具，从 npm 安装并启用 @oxmumu3/dot-dsh-management@latest，保留已有连接、配置和任务；安装后打开侧栏「Dot 连接」，首次使用按提示登录自己的账号并确认授权。
+> 请使用 Harness 的官方插件管理工具，从 npm 安装并启用 @oxmumu3/dot-dsh-management@0.6.0-preview.24，保留已有连接、配置和任务；安装后打开侧栏「Dot 连接」，首次使用按提示登录自己的账号并确认授权。
+
+pnpm 11 默认有 24 小时发布冷却期，`@latest` 可能仍选择成熟旧版；上方精确版本已通过官方 CLI 默认非 strict 路径验收。strict 客户端请保留策略，默认窗口需等到 **2026-11-05 17:31:48 UTC**；说明及本包自动记录的精确例外见[安装说明](docs/install-and-connect.md)。
 
 如 Harness 提示安装审批，核对内容后确认。安装后打开「Dot 连接」，点击「连接我的 Dot」：
 
@@ -45,7 +47,7 @@ Harness 需要保持运行，关闭「Dot 连接」页面不会停止后台连�
 
 ## 使用条件
 
-- 当前支持 macOS 的 DeepSeek Harness Desktop，本次候选拟支持 `0.2.1-rc.2`、`0.2.1-rc.3`、`0.2.1-rc.4`、`0.2.1-rc.5` 和 `0.2.2-rc.1`，最终验收状态见版本记录。标准原生安装复用 Harness 自带运行时，无需另装全局 Node 或 Python。
+- 当前支持 macOS 的 DeepSeek Harness Desktop，已验证 `0.2.1-rc.2`、`0.2.1-rc.3`、`0.2.1-rc.4`、`0.2.1-rc.5` 和 `0.2.2-rc.1`；实际验收范围见版本记录。标准原生安装复用 Harness 自带运行时，无需另装全局 Node 或 Python。
 - 使用自己的、具备 Dot、Tunnel 与自定义工具权限的 OpenAI 账号。账号资格由官方决定，插件不能替账号开通这些能力。
 - Harness 至少有一个已登记的真实项目，并有可用的模型与工具。没有项目时按插件提示选择文件夹。
 - 每个连接只服务其所有者。普通文件和已保存会话可以读取；凭据文件排除在读取范围外。文本脱敏尽力处理，不承诺识别全部敏感内容。

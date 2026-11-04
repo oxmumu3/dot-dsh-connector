@@ -1,6 +1,6 @@
 # 安装并连接自己的 Dot
 
-当前修复候选为 `0.6.0-preview.24`，正在补齐官方 Harness Desktop `0.2.2-rc.1` 的兼容验证，并保留 `0.2.1-rc.2` / `rc.3` / `rc.4` / `rc.5`。候选尚未发布；只有精确 SDK 回归、官方隔离 Host 安装与启停检查通过后，才会更新 npm `latest`。此前的连接、任务与持久会话读取修复继续保留；实测范围见[验收记录](verification.md)。
+当前版本 `0.6.0-preview.24` 已发布到 npm `latest`，兼容官方 Harness Desktop `0.2.2-rc.1`，并保留 `0.2.1-rc.2` / `rc.3` / `rc.4` / `rc.5`。此前的连接、任务与持久会话读取修复继续保留；实测范围见[验收记录](verification.md)。
 
 这个插件让你的 Dot 读取 DeepSeek Harness 项目并派任务。连接使用你自己的账号和电脑，任务使用 Harness 原有的模型、工具和审批设置。
 
@@ -8,7 +8,9 @@
 
 在 Harness 会话中发送：
 
-> 请使用 Harness 的官方插件管理工具，从 npm 安装并启用 @oxmumu3/dot-dsh-management@latest，保留已有连接、配置和任务；安装后打开侧栏「Dot 连接」，首次使用按提示登录自己的账号并确认授权。
+> 请使用 Harness 的官方插件管理工具，从 npm 安装并启用 @oxmumu3/dot-dsh-management@0.6.0-preview.24，保留已有连接、配置和任务；安装后打开侧栏「Dot 连接」，首次使用按提示登录自己的账号并确认授权。
+
+pnpm 11 默认有 1440 分钟（24 小时）发布冷却期，所以 npm `latest` 已更新时，`@latest` 仍可能选到旧版；本次安装因此固定精确版本。默认非 strict 实测中，pnpm 自动记录的冷却例外仅涉及本包的精确版本，未手工更改策略参数或全局配置。strict 客户端请保留现有策略：默认窗口需等到 **2026-11-05 17:31:48 UTC**；更长窗口按本地配置等待。详见[pnpm 11 发布说明](https://pnpm.io/blog/releases/11.0)与[strict 策略说明](https://pnpm.io/settings/dependency-resolution#minimumreleaseagestrict)。
 
 如提示安装审批，核对后确认。只安装 `@oxmumu3/dot-dsh-management` 这一个原生插件即可；不需要另装仓库根包、运行终端命令或创建 DeepSeek 模型 API key。
 
@@ -48,7 +50,7 @@ Harness 必须保持运行；关闭插件页面不影响后台连接。应用退
 
 ## 使用前确认
 
-本次 macOS 候选拟支持 Harness Desktop `0.2.1-rc.2`、`0.2.1-rc.3`、`0.2.1-rc.4`、`0.2.1-rc.5` 和 `0.2.2-rc.1`；完成验证后才发布。标准原生安装不需要另装全局 Node 或 Python。你需要具备 Dot、Tunnel、自定义工具权限的 OpenAI 账号，以及 Harness 中可用的模型、工具和真实项目。账号资格由官方决定。
+当前 macOS 版本已验证 Harness Desktop `0.2.1-rc.2`、`0.2.1-rc.3`、`0.2.1-rc.4`、`0.2.1-rc.5` 和 `0.2.2-rc.1`。标准原生安装不需要另装全局 Node 或 Python。你需要具备 Dot、Tunnel、自定义工具权限的 OpenAI 账号，以及 Harness 中可用的模型、工具和真实项目。账号资格由官方决定。
 
 升级同一个插件会沿用原有连接与数据。使用外部服务的旧部署，先按[维护说明](operator-runbook.md)核对归属及运行中的任务，不删除旧凭据或关闭未知服务。
 

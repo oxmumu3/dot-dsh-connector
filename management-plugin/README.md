@@ -6,9 +6,11 @@
 
 在 Harness 会话中发送：
 
-> 请使用 Harness 的官方插件管理工具，从 npm 安装并启用 @oxmumu3/dot-dsh-management@latest，保留已有连接、配置和任务；安装后打开侧栏「Dot 连接」，首次使用按提示登录自己的账号并确认授权。
+> 请使用 Harness 的官方插件管理工具，从 npm 安装并启用 @oxmumu3/dot-dsh-management@0.6.0-preview.24，保留已有连接、配置和任务；安装后打开侧栏「Dot 连接」，首次使用按提示登录自己的账号并确认授权。
 
-Harness 通过官方插件管理工具从 npm 获取当前 `latest` 并安装；需要时由本人确认安装审批。无需自己下载文件或运行全局 npm 命令。
+Harness 通过官方插件管理工具从 npm 安装上述精确版本；需要时由本人确认安装审批。无需自己下载文件或运行全局 npm 命令。
+
+pnpm 11 默认有 24 小时发布冷却期，`@latest` 可能仍选择成熟旧版。上述精确版本已通过默认非 strict 路径验收；本次 pnpm 自动记录的冷却例外仅涉及本包的精确版本，未手工调整策略参数或全局配置。strict 客户端请保留策略，默认 1440 分钟窗口等待至 **2026-11-05 17:31:48 UTC**；更长窗口按本地配置。详见[pnpm 11 说明](https://pnpm.io/blog/releases/11.0)及[strict 策略](https://pnpm.io/settings/dependency-resolution#minimumreleaseagestrict)。
 
 安装完成后打开侧栏「Dot 连接」，点击「连接我的 Dot」。插件自动准备本机与账号侧配置；需要时在官方页面登录自己的账号并确认授权，最后验证读取和派任务。已有连接和任务会保留。
 
