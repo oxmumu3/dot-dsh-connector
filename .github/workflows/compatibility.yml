@@ -39,13 +39,13 @@ jobs:
           ref: ${{ github.sha }}
           persist-credentials: false
       - &node
-        name: Use Node 22.22.0
+        name: Use Node 24.22.1
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
         with:
-          node-version: 22.22.0
+          node-version: 24.22.1
           package-manager-cache: false
       - name: Validate CI admission, environment and publication contracts
-        run: node --test test/ci-compatibility.test.mjs
+        run: node --test test/ci-compatibility.test.mjs test/official-host-lifecycle.test.mjs
       - name: Discover and reconcile official SDK versions
         id: verified
         run: node scripts/ci/compatibility.mjs discover --out "$RUNNER_TEMP/discovery"
@@ -99,14 +99,18 @@ jobs:
           retention-days: 7
           include-hidden-files: false
   host:
-    name: Isolated official macOS Host
+    name: Isolated official macOS Host ${{ matrix.sdk }}
     needs: discover
     runs-on: macos-14
     timeout-minutes: 20
     permissions:
       contents: read
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix: ${{ fromJSON(needs.discover.outputs.matrix) }}
     env:
-      SDK_VERSION: ${{ needs.discover.outputs.latest_sdk }}
+      SDK_VERSION: ${{ matrix.sdk }}
     steps:
       - *checkout
       - *node
@@ -120,7 +124,7 @@ jobs:
         if: ${{ always() }}
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
-          name: compatibility-official-host
+          name: compatibility-official-host-${{ matrix.sdk }}
           path: ${{ runner.temp }}/host-proof/
           if-no-files-found: warn
           retention-days: 7

@@ -29,3 +29,10 @@ test('runtime sandbox explicitly admits bind while preserving network and privil
  const host=await readFile(new URL('../scripts/ci/run-host.mjs',import.meta.url),'utf8'),runner=await readFile(new URL('../scripts/ci/run-sandbox.py',import.meta.url),'utf8'),release=await readFile(new URL('../.github/workflows/npm-release.yml',import.meta.url),'utf8');
  assert.ok(host.includes('(allow network-bind (local ip "localhost:*"))'));assert.ok(runner.includes('(allow network-bind (local ip "localhost:*"))'));assert.ok(runner.includes('--no-new-privs'));assert.ok(release.indexOf('Recheck official SDK discovery immediately before packing')<release.indexOf('Pack and validate the exact release artifact'));
 });
+
+test('the current desktop carrier uses Cordis 4.1 while older SDKs keep Cordis 4.0',()=>{
+ assert.equal(carrierDependencies('0.2.2-rc.1',manifest,true)['@deepseek-ai/cordis'],'4.1.0');
+ assert.equal(carrierDependencies('0.2.2-rc.1',manifest)['@deepseek-ai/dsh-tool-executor-native'],'0.2.2-rc.1');
+ assert.equal(carrierDependencies('0.2.1-rc.5',manifest)['@deepseek-ai/dsh-tool-executor-native'],undefined);
+ assert.equal(carrierDependencies('0.2.1-rc.5',manifest,true)['@deepseek-ai/cordis'],'4.0.5');
+});

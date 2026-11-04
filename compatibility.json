@@ -1,17 +1,18 @@
 {
   "schemaVersion": 1,
   "package": "@oxmumu3/dot-dsh-management",
-  "version": "0.6.0-preview.23",
+  "version": "0.6.0-preview.24",
   "officialPackage": "@deepseek-ai/dsh",
   "officialRepository": "deepseek-ai/deepseek-harness",
   "verifiedSdks": [
     "0.2.1-rc.2",
     "0.2.1-rc.3",
     "0.2.1-rc.4",
-    "0.2.1-rc.5"
+    "0.2.1-rc.5",
+    "0.2.2-rc.1"
   ],
-  "latestOfficial": "0.2.1-rc.5",
-  "verifiedAt": "2026-11-01",
+  "latestOfficial": "0.2.2-rc.1",
+  "verifiedAt": "2026-11-04",
   "node": ">=22.15",
   "gates": [
     "13-file compatibility suite with explicit public SDK carrier and real persisted codec reads",
@@ -24,5 +25,12 @@
   "knownUnsupported": {
     "0.2.2-alpha.2": "Existing alpha channel; not admitted by engines or runtime preflight.",
     "0.2.2-alpha.3": "Reviewed 2026-11-03: official alpha channel; latest/next remain 0.2.1-rc.5. Not admitted by engines, runtime preflight or the verified SDK matrix."
+  },
+  "officialDesktop": {
+    "version": "0.2.2-rc.1",
+    "channel": "RC",
+    "feed": "https://download.deepseek.com/dsh-desk/feeds/mac-arm64/nightly-mac.yml",
+    "release": "https://github.com/deepseek-ai/deepseek-harness/releases/tag/dsh-v0.2.2-rc.1",
+    "stagingPercentage": 30
   }
 }

@@ -1,3 +1,13 @@
+# 0.6.0-preview.24 · Harness 0.2.2-rc.1 compatibility candidate
+
+The official Harness Desktop rollout has reached `0.2.2-rc.1`, while the existing preview.23 package admits only the four `0.2.1-rc.*` versions. This is a genuine new Desktop/SDK compatibility gap. The previous alpha.3 review does not certify rc.1, and changing a package engine range alone is insufficient.
+
+This candidate targets exact `0.2.2-rc.1` while retaining exact rc.2 / rc.3 / rc.4 / rc.5 support. Unknown releases and the separately reviewed unsupported alpha.2 / alpha.3 remain outside the admitted set. Root/native declarations, SDK peers and lock graphs, managed preflight, isolated task runtime, persisted-codec graph checks and actual official interfaces must agree before publication.
+
+Current status: implementation and verification in progress. Exact SDK regression, final native archive checks, official isolated Host install/enable/stop/restart/uninstall checks, independent review, trusted publication and public readback are pending. This entry is not a claim of a published preview.24, npm latest promotion, current-market synchronization or actual new-account/Dot acceptance.
+
+The primary user install path is now the package reference `@oxmumu3/dot-dsh-management@latest` through Harness's official plugin manager. It is not a request to run global npm, manually install a root source package or recreate existing account grants. Existing connection configuration, credentials and task identity are retained. Details and evidence will be recorded in [the rc.1 compatibility review](compatibility-rc1-2026-11-04.md).
+
 # 0.6.0-preview.23 · Reviewed alpha discovery
 
 This maintenance release records exact official `0.2.2-alpha.3` as unsupported while keeping rc.2 through rc.5 admission. Unknown new releases and unsupported versions promoted to `latest` continue to fail closed. See the [review and local verification](compatibility-alpha-2026-11-03.md). Hosted publication receipts are recorded by the release workflow and GitHub release; this local ledger is not itself a publication receipt.

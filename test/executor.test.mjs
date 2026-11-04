@@ -97,12 +97,14 @@ test('isolated host assembly exposes only constant instructions and no model too
  assert.deepEqual(assembly.contexts,[]);assert.deepEqual(assembly.tools,[]);assert.equal(assembly.sections.length,1);assert.doesNotMatch(JSON.stringify(assembly),/private|run_code/);
 });
 
-test('real public 0.2.1-rc.2 tool registry denies scope-local tools even after an allowing listener',async t=>{
+test('real public SDK tool registry denies scope-local tools even after an allowing listener',async t=>{
  const sdk=await openPublicSdk({sdkRoot:process.env.DSH_TEST_SDK_ROOT});t.after(()=>sdk.close());
  const require=createRequire(`${sdk.root}/package.json`);const load=name=>import(pathToFileURL(require.resolve(name)).href);
  const [{Context},{default:SystemPrompt},{default:ToolRuntime,defineTool},{createScope},{createUserMessage}]=await Promise.all(['@deepseek-ai/cordis','@deepseek-ai/dsh-system-prompt','@deepseek-ai/dsh-tools','@deepseek-ai/dsh-scope','@deepseek-ai/dsh-llm'].map(load));
- assert.ok(VERIFIED_SDK_VERSIONS.includes(require('@deepseek-ai/dsh-tools/package.json').version));
- const {createExecutor}=await api();const ctx=new Context();await ctx.plugin(SystemPrompt,{});await ctx.plugin(ToolRuntime,{mode:'native'});let executed=0,agent,ownerCtx;ctx.provide('agentDefaultModel',{currentSelection:()=>({provider:'synthetic',model:'no-model-called'})});
+ const sdkVersion=require('@deepseek-ai/dsh-tools/package.json').version;assert.ok(VERIFIED_SDK_VERSIONS.includes(sdkVersion));
+ const {createExecutor}=await api();const ctx=new Context();await ctx.plugin(SystemPrompt,{});await ctx.plugin(ToolRuntime,sdkVersion==='0.2.2-rc.1'?undefined:{mode:'native'});
+ if(sdkVersion==='0.2.2-rc.1'){const name='@deepseek-ai/dsh-tool-executor-native';assert.equal(require(name+'/package.json').version,sdkVersion);await ctx.plugin(await load(name));}
+ let executed=0,agent,ownerCtx;ctx.provide('agentDefaultModel',{currentSelection:()=>({provider:'synthetic',model:'no-model-called'})});
  await ctx.plugin({name:'synthetic-executor-mount',inject:['tools','systemPrompt'],apply(scope){ownerCtx=scope;}});
  ctx.provide('agents',{get:()=>undefined,async create(options){agent={id:options.sessionId,session:{id:options.sessionId,header:options.meta},followup(){},cancel(){}};const scoped=createScope(ownerCtx,agent);agent.ctx=scoped.ctx;await options.setup(scoped.ctx,agent);return{agent,dispose:()=>scoped.dispose()};}});
  let privateProviderReads=0;const stopPrivateProvider=ownerCtx.systemPrompt.section({name:'unrelated-global-provider',order:1,text:()=>{privateProviderReads++;return 'unrelated private context';}});
@@ -111,5 +113,13 @@ test('real public 0.2.1-rc.2 tool registry denies scope-local tools even after a
  agent.ctx.tools.register(defineTool({name:'scoped_mutation',description:'Synthetic mutation counter',parameters:{},output:{schema:{type:'object',additionalProperties:true},render:()=>[]},execute(){executed++;return{};}}));
  agent.ctx.on('tools/pre-execute',()=>({kind:'allow'}));
  const assembly=await ownerCtx.systemPrompt.assemble({scope:agent,agent});assert.deepEqual(assembly.tools,[]);assert.deepEqual(assembly.contexts,[]);assert.equal(assembly.sections.length,1);assert.equal(assembly.sections[0].name,'dot-dsh-connector:task');
- const result=await ctx.tools.execute({agent,name:'scoped_mutation',callId:uuid(),arguments:{},signal:new AbortController().signal});assert.equal(result.isError,true);assert.equal(executed,0);assert.match(JSON.stringify(result),/disabled/i);
+ const callId=uuid(),signal=new AbortController().signal;let result;
+ if(sdkVersion==='0.2.2-rc.1'){
+  const batch={agent,signal,calls:[{type:'tool-call',id:callId,name:'scoped_mutation',arguments:'{}'}]};
+  await assert.rejects(ctx.tools.execute(batch),/disabled/i);
+  // Even an explicit public Native pipeline cannot bypass the scoped guard.
+  const {NativeToolExecutor}=await load('@deepseek-ai/dsh-tool-executor-native');
+  const value=await new NativeToolExecutor(ctx).execute(batch);assert.equal(value.results.length,1);assert.equal(value.results[0].callId,callId);result=value.results[0].result;
+ }else result=await ctx.tools.execute({agent,name:'scoped_mutation',callId,arguments:{},signal});
+ assert.equal(result.isError,true);assert.equal(executed,0);assert.match(JSON.stringify(result),/disabled/i);
 });

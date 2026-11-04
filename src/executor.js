@@ -93,6 +93,10 @@ export function createExecutor({ctx,createMessage,isolatedHost=false}={}){
      // The monotonic guard independently denies every dispatch, including both.
      entry.listeners.push(agentCtx.tools.restrict({allow:[]}));
      entry.listeners.push(agentCtx.tools.guard(()=>'All tools are disabled for Dot connector snapshot tasks'));
+     // SDK 0.2.2 makes tool declarations provider-owned: the presentation
+     // waterfall can no longer hide scope-local schemas. Its scoped executor
+     // owns both the empty model-facing set and rejection of raw batches.
+     if(typeof agentCtx.tools.setExecutor==='function')entry.listeners.push(agentCtx.tools.setExecutor({describe:()=>({schemas:[],knownNames:[]}),async execute(){throw new Error('All tools are disabled for Dot connector snapshot tasks');}}));
      entry.listeners.push(agentCtx.on('tools/pre-execute',()=>({kind:'deny',reason:'All tools are disabled for Dot connector snapshot tasks'})));
      entry.listeners.push(agentCtx.on('system-prompt/assemble',async()=>({sections:[{name:'dot-dsh-connector:task',text:SYSTEM_INSTRUCTIONS,interpolate:false}],contexts:[],tools:[],variables:{provider:route.provider,model:route.model}})));
      // A model route/cap is configuration, never an authorization source. Do

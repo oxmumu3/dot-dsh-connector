@@ -6,13 +6,14 @@ import {fileURLToPath} from 'node:url';
 import {execFile} from 'node:child_process';
 import {promisify} from 'node:util';
 import {createHash} from 'node:crypto';
-import {validateCompatibility} from '../check-compatibility.mjs';
+import {validateCompatibility,readOfficialDesktop} from '../check-compatibility.mjs';
+import {sdkCordisVersion} from '../../management-plugin/src/compatibility.js';
 
 const root=fileURLToPath(new URL('../../',import.meta.url)),run=promisify(execFile);
 const contracts=['dsh-agent','dsh-agent-loop','dsh-system-prompt','dsh-tools','dsh-llm','dsh-session','dsh-session-projection','dsh-agent-default-model','dsh-launch-environment','dsh-typert-protocol','dsh-typert-registry','dsh-api-gateway','dsh-client-connection','dsh-llm-deepseek-api-key','dsh-session-format-v0-to-v1','dsh-session-format-v1-to-v2','dsh-session-format-v2-to-v3','dsh-session-format-v3-to-v4'];
 export function assertSdk(version,manifest){assert.ok(manifest.verifiedSdks.includes(version)&&/^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/.test(version),'unverified SDK: '+version);return version;}
 export function workflowMatrix(manifest){assert.ok(manifest.verifiedSdks.length>0&&manifest.verifiedSdks.length<=12);assert.equal(new Set(manifest.verifiedSdks).size,manifest.verifiedSdks.length);return{sdk:manifest.verifiedSdks.map(version=>assertSdk(version,manifest))};}
-export function carrierDependencies(version,manifest,host=false){assertSdk(version,manifest);return{...Object.fromEntries(contracts.map(name=>['@deepseek-ai/'+name,version])),'@deepseek-ai/cordis':'4.0.5',zod:'4.6.7','@modelcontextprotocol/sdk':'1.32.1','playwright-core':'1.64.1',...host?{'@deepseek-ai/dsh':version,pnpm:'11.28.5'}:{}};}
+export function carrierDependencies(version,manifest,host=false){assertSdk(version,manifest);return{...Object.fromEntries(contracts.map(name=>['@deepseek-ai/'+name,version])),...version==='0.2.2-rc.1'?{'@deepseek-ai/dsh-tool-executor-native':version}:{},'@deepseek-ai/cordis':sdkCordisVersion(version),zod:'4.6.7','@modelcontextprotocol/sdk':'1.32.1','playwright-core':'1.64.1',...host?{'@deepseek-ai/dsh':version,pnpm:'11.28.5'}:{}};}
 export function cleanEnvironment(home,source=process.env){return{PATH:source.PATH??'/usr/bin:/bin:/usr/sbin:/sbin',HOME:home,XDG_CONFIG_HOME:join(home,'.config'),XDG_DATA_HOME:join(home,'.local/share'),DSH_HOME:join(home,'dsh'),DSH_AGENTS_HOME:join(home,'agents'),TMPDIR:tmpdir(),LANG:'en_US.UTF-8',CI:'true',DSH_TELEMETRY_DISABLED:'1',NPM_CONFIG_USERCONFIG:join(home,'empty.npmrc'),NPM_CONFIG_CACHE:join(home,'npm-cache')};}
 async function carrier(rootPath,version,manifest){
  const directory=await realpath(rootPath);
@@ -27,7 +28,7 @@ export async function main(args=process.argv.slice(2)){
   if(options_.official)official=JSON.parse(await readFile(options_.official,'utf8'));
   else{const response=await fetch('https://registry.npmjs.org/@deepseek-ai%2fdsh',{signal:AbortSignal.timeout(15000)});assert.equal(response.status,200,'Official SDK discovery unavailable');const text=await response.text();assert.ok(Buffer.byteLength(text)<=4*1024*1024,'Official metadata exceeds bound');official=JSON.parse(text);}
   official={name:official.name,versions:Array.isArray(official.versions)?official.versions:Object.keys(official.versions??{}),'dist-tags':official['dist-tags']};
-  const checked=await validateCompatibility({root,official}),matrix=workflowMatrix(manifest),{stdout}=await run('git',['rev-parse','HEAD'],{cwd:root});const sourceSha=stdout.trim();assert.match(sourceSha,/^[a-f0-9]{40}$/);
+  const checked=await validateCompatibility({root,official,desktop:options_.official?undefined:await readOfficialDesktop()}),matrix=workflowMatrix(manifest),{stdout}=await run('git',['rev-parse','HEAD'],{cwd:root});const sourceSha=stdout.trim();assert.match(sourceSha,/^[a-f0-9]{40}$/);
   await writeFile(join(out,'official.json'),JSON.stringify(official,null,2)+'\n');
   if(process.env.GITHUB_SHA)assert.equal(sourceSha,process.env.GITHUB_SHA,'Discovery did not check out the triggering source');
   const proof={...checked,matrix,sourceSha,manifestSha256:createHash('sha256').update(await readFile(join(root,'compatibility.json'))).digest('hex'),source:options_.official?'local-fixture':'official-npm-registry',desktopOnboardingVerified:false};

@@ -68,7 +68,9 @@ test('actual public AgentLoop completes a connector-owned turn through a determi
  let networkCalls=0;t.mock.method(globalThis,'fetch',()=>{networkCalls++;throw new Error('Network disabled by native-loop test');});
  ctx=new Context();const requests=[];
  await ctx.plugin(SystemPrompt,{includeHarnessIdentity:false,includeRuntimeContext:false});
- await ctx.plugin(Llm);await ctx.plugin(Sessions);await ctx.plugin(Projections);await ctx.plugin(Tools,{mode:'native'});await ctx.plugin(Agents);await ctx.plugin(AgentLoop,{agents:[]});
+ await ctx.plugin(Llm);await ctx.plugin(Sessions);await ctx.plugin(Projections);await ctx.plugin(Tools,selectedSdk==='0.2.2-rc.1'?undefined:{mode:'native'});
+ if(selectedSdk==='0.2.2-rc.1'){const name='@deepseek-ai/dsh-tool-executor-native';assert.equal(require(name+'/package.json').version,selectedSdk);await ctx.plugin(await load(name));}
+ await ctx.plugin(Agents);await ctx.plugin(AgentLoop,{agents:[]});
  ctx.provide('agentDefaultModel',{currentSelection:()=>({provider:'synthetic-local-only',model:'deterministic-fixture'})});
  class SyntheticAdapter extends LlmAdapter{
   async *stream(options){requests.push(options);yield{type:'block-start',index:0,blockType:'text'};yield{type:'text-delta',index:0,text:'SYNTHETIC actual AgentLoop response, source README.md; real model and Dot are untested.'};yield{type:'block-end',index:0,block:{type:'text',text:'SYNTHETIC actual AgentLoop response, source README.md; real model and Dot are untested.'}};yield{type:'finish',reason:{kind:'stop'}};}

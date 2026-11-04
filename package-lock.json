@@ -1,12 +1,12 @@
 {
   "name": "dot-dsh-connector",
-  "version": "0.6.0-preview.23",
+  "version": "0.6.0-preview.24",
   "lockfileVersion": 3,
   "requires": true,
   "packages": {
     "": {
       "name": "dot-dsh-connector",
-      "version": "0.6.0-preview.23",
+      "version": "0.6.0-preview.24",
       "license": "MIT",
       "dependencies": {
         "@modelcontextprotocol/sdk": "1.32.1",
@@ -23,11 +23,11 @@
         "react-test-renderer": "18.2.0"
       },
       "engines": {
-        "dsh": "0.2.1-rc.2 || 0.2.1-rc.3 || 0.2.1-rc.4 || 0.2.1-rc.5",
+        "dsh": "0.2.1-rc.2 || 0.2.1-rc.3 || 0.2.1-rc.4 || 0.2.1-rc.5 || 0.2.2-rc.1",
         "node": ">=22.15"
       },
       "peerDependencies": {
-        "@deepseek-ai/dsh-llm": "0.2.1-rc.2 || 0.2.1-rc.3 || 0.2.1-rc.4 || 0.2.1-rc.5"
+        "@deepseek-ai/dsh-llm": "0.2.1-rc.2 || 0.2.1-rc.3 || 0.2.1-rc.4 || 0.2.1-rc.5 || 0.2.2-rc.1"
       },
       "peerDependenciesMeta": {
         "@deepseek-ai/dsh-llm": {
