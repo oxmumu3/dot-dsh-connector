@@ -1,11 +1,19 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
-import {carrierDependencies,cleanEnvironment,assertSdk,workflowMatrix} from '../scripts/ci/compatibility.mjs';
+import {carrierDependencies,cleanEnvironment,assertSdk,workflowMatrix,hostMatrix} from '../scripts/ci/compatibility.mjs';
 const manifest=JSON.parse(await readFile(new URL('../compatibility.json',import.meta.url),'utf8'));
 test('matrix follows the exact reviewed manifest and refuses unknown SDK input',()=>{
- assert.deepEqual(workflowMatrix(manifest),{sdk:manifest.verifiedSdks});
+ assert.deepEqual(workflowMatrix(manifest),{include:manifest.verifiedSdks.map(sdk=>({sdk,node:manifest.sdkProfiles[sdk].node}))});
  for(const version of ['0.2.1-rc.6','0.2.2-alpha.2','0.2.2-alpha.3','0.2.2-alpha.4','latest','rc.5'])assert.throws(()=>assertSdk(version,manifest),/unverified SDK/);
+});
+test('next RC keeps its exact Node and Cordis profile and gets its own actual Host gate',()=>{
+ assert.equal(carrierDependencies('0.2.2-rc.1',manifest)['@deepseek-ai/cordis'],'4.1.0');
+ assert.equal(carrierDependencies('0.2.2-rc.1',manifest)['@deepseek-ai/dsh-tool-executor-native'],'0.2.2-rc.1');
+ assert.deepEqual(hostMatrix(manifest,'0.2.1-rc.5'),{include:[{sdk:'0.2.1-rc.5',node:'22.22.0'},{sdk:'0.2.2-rc.1',node:'24.22.2'}]});
+ assert.deepEqual(hostMatrix(manifest,'0.2.2-rc.1'),{include:[{sdk:'0.2.2-rc.1',node:'24.22.2'}]});
+ const mutated={...manifest,sdkProfiles:{...manifest.sdkProfiles,'0.2.2-rc.1':{...manifest.sdkProfiles['0.2.2-rc.1'],node:'22.22.0'}}};
+ assert.throws(()=>workflowMatrix(mutated));
 });
 test('carriers pin actual public contracts and all admitted package versions',()=>{
  const deps=carrierDependencies('0.2.1-rc.5',manifest);

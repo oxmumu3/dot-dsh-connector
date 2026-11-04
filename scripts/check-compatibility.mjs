@@ -24,17 +24,25 @@ export async function validateCompatibility({root=defaultRoot,official}={}){
  root=root instanceof URL?fileURLToPath(root):resolve(root);
  const json=async name=>JSON.parse(await readFile(join(root,name),'utf8'));
  const [manifest,pkg,native,lock,shrink]=await Promise.all(['compatibility.json','package.json','management-plugin/package.json','package-lock.json','npm-shrinkwrap.json'].map(json));
- const {VERIFIED_SDK_VERSIONS}=await import(pathToFileURL(join(root,'management-plugin/src/compatibility.js')).href);
+ const {VERIFIED_SDK_VERSIONS,SDK_PROFILES}=await import(pathToFileURL(join(root,'management-plugin/src/compatibility.js')).href);
  assert.equal(manifest.schemaVersion,1);assert.equal(manifest.package,native.name);assert.equal(manifest.version,pkg.version);assert.equal(native.version,pkg.version);
  assert.deepEqual(manifest.verifiedSdks,[...VERIFIED_SDK_VERSIONS]);assert.ok(manifest.verifiedSdks.includes(manifest.latestOfficial));
+ assert.deepEqual(manifest.sdkProfiles,SDK_PROFILES,'SDK runtime profiles must match exact reviewed declarations');
+ assert.equal(manifest.latestOfficial,[...manifest.verifiedSdks].sort(compare).at(-1),'Expected the most recent verified SDK, independently of the latest dist-tag');
  const range=manifest.verifiedSdks.join(' || ');
  assert.equal(pkg.engines.dsh,range);assert.equal(native.engines.dsh,range);assert.equal(pkg.peerDependencies['@deepseek-ai/dsh-llm'],range);
+ assert.equal(native.peerDependencies['@deepseek-ai/dsh-typert-protocol'],range);assert.equal(native.dependencies['@deepseek-ai/dsh-typert-protocol'],undefined,'Protocol must be supplied by the selected Host');
+ assert.equal(native.peerDependencies['@deepseek-ai/cordis'],[...new Set(Object.values(SDK_PROFILES).map(profile=>profile.cordis))].join(' || '));
  for(const value of [lock,shrink]){assert.equal(value.version,pkg.version);assert.equal(value.packages[''].version,pkg.version);assert.equal(value.packages[''].engines.dsh,range);assert.equal(value.packages[''].peerDependencies['@deepseek-ai/dsh-llm'],range);}
  const versions=Array.isArray(official?.versions)?official.versions:Object.keys(official?.versions??{}),latest=official?.['dist-tags']?.latest;
  assert.ok(official?.name===manifest.officialPackage&&versions.length&&typeof latest==='string'&&versions.includes(latest),'Invalid official SDK discovery');
- for(const version of versions){parts(version);assert.ok(compare(version,manifest.latestOfficial)<=0||Object.hasOwn(manifest.knownUnsupported??{},version),`unverified official SDK ${version}; audit and rerun the public SDK and official Host gates before extending support`);}
+ assert.ok(Array.isArray(manifest.observedOfficialVersions)&&manifest.observedOfficialVersions.length>0,'An audited official version snapshot is required');
+ const observed=new Set(manifest.observedOfficialVersions);assert.equal(observed.size,manifest.observedOfficialVersions.length);
+ for(const version of observed)parts(version);
+ for(const version of [...manifest.verifiedSdks,...Object.keys(manifest.knownUnsupported??{})])assert.ok(observed.has(version),'Admission must refer to an observed official version');
+ for(const version of versions){parts(version);assert.ok(observed.has(version),`unverified official SDK ${version}; audit and rerun the public SDK and official Host gates before extending support`);}
  assert.ok(manifest.verifiedSdks.includes(latest),`unverified official SDK ${latest}`);
- return {package:native.name,version:pkg.version,verifiedSdks:manifest.verifiedSdks,latestOfficial:latest};
+ return {package:native.name,version:pkg.version,verifiedSdks:manifest.verifiedSdks,latestOfficial:latest,actualLatest:latest,mostRecentVerified:manifest.latestOfficial,sdkProfiles:manifest.sdkProfiles};
 }
 export async function checkCompatibility(){
  let official;

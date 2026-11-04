@@ -29,6 +29,7 @@ jobs:
       contents: read
     outputs:
       matrix: ${{ steps.verified.outputs.matrix }}
+      host_matrix: ${{ steps.verified.outputs.host_matrix }}
       latest_sdk: ${{ steps.verified.outputs.latest_sdk }}
       source_sha: ${{ steps.verified.outputs.source_sha }}
     steps:
@@ -72,7 +73,12 @@ jobs:
       SDK_VERSION: ${{ matrix.sdk }}
     steps:
       - *checkout
-      - *node
+      - &matrix-node
+        name: Use verified Node ${{ matrix.node }}
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
+        with:
+          node-version: ${{ matrix.node }}
+          package-manager-cache: false
       - &npm
         name: Use npm 11.15.0
         run: npm install --global npm@11.15.0 --ignore-scripts --no-audit --no-fund
@@ -99,22 +105,26 @@ jobs:
           retention-days: 7
           include-hidden-files: false
   host:
-    name: Isolated official macOS Host
+    name: Isolated official macOS Host ${{ matrix.sdk }}
     needs: discover
     runs-on: macos-14
     timeout-minutes: 20
     permissions:
       contents: read
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix: ${{ fromJSON(needs.discover.outputs.host_matrix) }}
     env:
-      SDK_VERSION: ${{ needs.discover.outputs.latest_sdk }}
+      SDK_VERSION: ${{ matrix.sdk }}
     steps:
       - *checkout
-      - *node
+      - *matrix-node
       - name: Validate actual macOS network proof and failure diagnostics
         run: |
           set -euo pipefail
           mkdir -p "$RUNNER_TEMP/host-proof"
-          node --test test/ci-host-network.test.mjs 2>&1 | tee "$RUNNER_TEMP/host-proof/network-preflight.tap"
+          node --test --test-reporter=tap test/ci-host-network.test.mjs 2>&1 | tee "$RUNNER_TEMP/host-proof/network-preflight.tap"
       - *npm
       - *dependencies
       - name: Prepare the exact official Host and pnpm 11.28.5
@@ -125,7 +135,7 @@ jobs:
         if: ${{ always() }}
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
-          name: compatibility-official-host
+          name: compatibility-official-host-${{ matrix.sdk }}
           path: ${{ runner.temp }}/host-proof/
           if-no-files-found: warn
           retention-days: 7

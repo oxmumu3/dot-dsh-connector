@@ -8,6 +8,7 @@ import {createRequire} from 'node:module';
 import {pathToFileURL} from 'node:url';
 import {randomUUID} from 'node:crypto';
 import {createExecutor} from '../src/executor.js';
+import {mountPublicTools,publicToolPackages} from '../scripts/public-tools.mjs';
 
 const ASAR='/Applications/DeepSeek Harness.app/Contents/Resources/app.asar';
 const ROOT_PACKAGES=['@deepseek-ai/cordis','@deepseek-ai/dsh-agent','@deepseek-ai/dsh-agent-loop','@deepseek-ai/dsh-system-prompt','@deepseek-ai/dsh-tools','@deepseek-ai/dsh-llm','@deepseek-ai/dsh-session','@deepseek-ai/dsh-session-projection'];
@@ -51,7 +52,8 @@ async function sdkForTest(t){
     if(!lookup(`${prefix}/node_modules/${dep}`))await copyPackage(dep);
    }
   }
-  for(const name of ROOT_PACKAGES)await copyPackage(name);
+  const sdkVersion=JSON.parse((await bytes('dsh/node_modules/@deepseek-ai/dsh-agent/package.json')).toString('utf8')).version;
+  for(const name of [...ROOT_PACKAGES,...publicToolPackages(sdkVersion)])await copyPackage(name);
   await writeFile(join(temporary,'package.json'),JSON.stringify({private:true,type:'module'}));
   return{root:temporary,close:()=>rm(temporary,{recursive:true,force:true})};
  }catch(error){await rm(temporary,{recursive:true,force:true});throw error;}
@@ -63,14 +65,15 @@ test('actual public AgentLoop completes a connector-owned turn through a determi
  const require=createRequire(join(sdk.root,'package.json'));const load=name=>import(pathToFileURL(require.resolve(name)).href);
  let ctx,executor;const scratch=await mkdtemp(join(tmpdir(),'dot-dsh-native-turn-'));
  t.after(async()=>{await executor?.close();await ctx?.fiber.dispose();await rm(scratch,{recursive:true,force:true});await sdk.close();});
- const selectedSdk=require('@deepseek-ai/dsh-agent/package.json').version;assert.ok(VERIFIED_SDK_VERSIONS.includes(selectedSdk));for(const name of ROOT_PACKAGES.filter(name=>name.includes('/dsh-')))assert.equal(require(`${name}/package.json`).version,selectedSdk,name);
+ const selectedSdk=require('@deepseek-ai/dsh-agent/package.json').version;assert.ok(VERIFIED_SDK_VERSIONS.includes(selectedSdk));for(const name of [...ROOT_PACKAGES.filter(name=>name.includes('/dsh-')),...publicToolPackages(selectedSdk)])assert.equal(require(`${name}/package.json`).version,selectedSdk,name);
  const [{Context},{default:Agents},{default:AgentLoop},{default:SystemPrompt},{default:Tools},{default:Llm,LlmAdapter,createUserMessage},{default:Sessions},{default:Projections}]=await Promise.all(ROOT_PACKAGES.map(load));
  let networkCalls=0;t.mock.method(globalThis,'fetch',()=>{networkCalls++;throw new Error('Network disabled by native-loop test');});
  ctx=new Context();const requests=[];
  await ctx.plugin(SystemPrompt,{includeHarnessIdentity:false,includeRuntimeContext:false});
- await ctx.plugin(Llm);await ctx.plugin(Sessions);await ctx.plugin(Projections);await ctx.plugin(Tools,{mode:'native'});await ctx.plugin(Agents);await ctx.plugin(AgentLoop,{agents:[]});
- ctx.provide('agentDefaultModel',{currentSelection:()=>({provider:'synthetic-local-only',model:'deterministic-fixture'})});
+ await ctx.plugin(Llm);await ctx.plugin(Sessions);await ctx.plugin(Projections);await mountPublicTools(ctx,{Tools,sdkVersion:selectedSdk,load});await ctx.plugin(Agents);await ctx.plugin(AgentLoop,{agents:[]});
+ ctx.provide('agentDefaultModel',{currentSelection:()=>({provider:'synthetic-local-only',model:'deterministic-fixture',reasoningEffort:'medium'})});
  class SyntheticAdapter extends LlmAdapter{
+  async resolveModel(provider,model){return{provider,id:model,name:model,reasoning:{efforts:[{id:'medium',name:'Medium'}]}};}
   async *stream(options){requests.push(options);yield{type:'block-start',index:0,blockType:'text'};yield{type:'text-delta',index:0,text:'SYNTHETIC actual AgentLoop response, source README.md; real model and Dot are untested.'};yield{type:'block-end',index:0,block:{type:'text',text:'SYNTHETIC actual AgentLoop response, source README.md; real model and Dot are untested.'}};yield{type:'finish',reason:{kind:'stop'}};}
  }
  let owner;
@@ -80,7 +83,7 @@ test('actual public AgentLoop completes a connector-owned turn through a determi
  const deadline=setTimeout(()=>done.reject(new Error(`Actual AgentLoop did not settle: ${JSON.stringify(events)}`)),10_000);t.after(()=>clearTimeout(deadline));
  const accepted=await executor.start({session_id,message_id,task:'State what the public fixture says and its unverified boundary.',project_root:scratch,context:{files:[{path:'README.md',text:'Only public synthetic material. No real model or Dot acceptance.',sha256:'a'.repeat(64)}]}},{onEvent:event=>{events.push(event);if(event.type==='turn/end')done.resolve(event);}});
  assert.deepEqual(accepted,{session_id,message_id});const terminal=await done.promise;
- assert.equal(terminal.reason,'completed');assert.equal(requests.length,1);assert.deepEqual(requests[0].tools??[],[]);assert.equal(requests[0].maxTokens,4096);assert.equal(networkCalls,0);
+ assert.equal(terminal.reason,'completed');assert.equal(requests.length,1);assert.deepEqual(requests[0].tools??[],[]);assert.equal(requests[0].maxTokens,4096);assert.equal(requests[0].reasoningEffort,'medium');assert.equal(networkCalls,0);
  assert.ok(events.some(event=>event.type==='user/message'&&event.message_id===message_id&&event.turn===terminal.turn));
  assert.match(events.find(event=>event.type==='assistant/message')?.text??'',/SYNTHETIC actual AgentLoop response/);
  assert.ok(events.every(event=>event.session_id===session_id));

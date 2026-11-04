@@ -2,6 +2,8 @@
 
 📖 设计思考与生态复盘：[《DeepSeek Harness 要走向极客玩具还是大众普惠？》](https://mp.weixin.qq.com/s/RIAYNqo8OsUVx2JpR8MPyA)
 
+本修复分支包含 Harness `0.2.2-rc.1` 的兼容候选，尚未合并或发布；下方公开 `0.6.0-preview.23` 安装包不会因此自动更新。候选的 Node、SDK 与验收范围见[兼容说明](docs/compatibility-0.2.2-rc.1.md)。
+
 当前版本为 `0.6.0-preview.23`。本版审阅官方新增的 alpha.3 通道，恢复已验证版本的 CI 与发布检查；继续支持 Harness rc.2 / rc.3 / rc.4 / rc.5，alpha.2 / alpha.3 暂不支持，未知新版本仍需审核。此前的持久会话 codec 修复保留；实测范围见[验收记录](docs/verification.md)。
 
 让你的 Dot 读取 DeepSeek Harness 项目、查看已保存的会话，并给 Harness 派任务、继续任务、查看结果。任务使用你当前 Harness 的模型、工具和审批设置，可以修改项目文件、运行命令。

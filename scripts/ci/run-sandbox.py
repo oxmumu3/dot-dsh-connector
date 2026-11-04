@@ -46,7 +46,7 @@ def main():
     proof = out / 'network-proof.json'
     assert bounded([args.node, str(ROOT / 'scripts/ci/network-proof.mjs')], env, proof, 10) == 0, 'Hard network sandbox probe failed'
     test_files = ['test/' + name + '.test.mjs' for name in SUITE]
-    command = [args.node, '--import', str(ROOT / 'scripts/ci/preload.mjs'), '--max-old-space-size=128', '--test', '--test-concurrency=1', *test_files]
+    command = [args.node, '--import', str(ROOT / 'scripts/ci/preload.mjs'), '--max-old-space-size=128', '--test', '--test-reporter=tap', '--test-concurrency=1', *test_files]
     log = out / 'contracts.tap'; status = bounded(command, env, log, 180)
     text = log.read_text(); counts = {key: int(value) for key, value in re.findall(r'^# (tests|pass|fail|skipped|cancelled) (\d+)$', text, re.M)}
     result = {'sdk': args.sdk, 'platform': sys.platform, 'counts': counts, 'suiteFiles': test_files, 'network': json.loads(proof.read_text()), 'syntheticHome': True, 'dailyDesktopUsed': False, 'desktopOnboardingVerified': False}

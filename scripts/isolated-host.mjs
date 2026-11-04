@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import {VERIFIED_SDK_VERSIONS} from '../management-plugin/src/compatibility.js';
+import {VERIFIED_SDK_VERSIONS,SDK_PROFILES,nodeSupportsSdk} from '../management-plugin/src/compatibility.js';
 // A separate, explicitly scoped process; never boots a Desktop/Web/base profile.
 import {z} from 'zod';
 import {mkdtemp,mkdir,open,readFile,writeFile,rm,realpath,stat} from 'node:fs/promises';
@@ -12,6 +12,7 @@ import {createExecutor} from '../src/executor.js';
 import {createCore} from '../src/core.js';
 import {createFileStore} from '../src/store.js';
 import {createBridge,isValidToken} from '../src/bridge.js';
+import {mountPublicTools,publicToolPackages} from './public-tools.mjs';
 
 const ASAR='/Applications/DeepSeek Harness.app/Contents/Resources/app.asar';
 const KERNEL=Object.freeze(['@deepseek-ai/cordis','@deepseek-ai/dsh-agent','@deepseek-ai/dsh-agent-loop','@deepseek-ai/dsh-system-prompt','@deepseek-ai/dsh-tools','@deepseek-ai/dsh-llm','@deepseek-ai/dsh-session','@deepseek-ai/dsh-session-projection','@deepseek-ai/dsh-agent-default-model','@deepseek-ai/dsh-launch-environment']);
@@ -27,6 +28,7 @@ export async function openPublicSdk({sdkRoot,realProvider=false}={}){
  const roots=[...KERNEL,...(realProvider?[API_ADAPTER]:[])];
  if(sdkRoot){
   const root=resolve(sdkRoot);if(await realpath(root)!==root)throw failure('Public SDK root must be canonical','SDK_UNAVAILABLE');
+  const require=createRequire(join(root,'package.json'));roots.push(...publicToolPackages(require('@deepseek-ai/dsh-agent/package.json').version));
   return{root,close:async()=>{},packages:roots};
  }
  try{await stat(ASAR);}catch{throw failure('Public SDK unavailable; provide an explicit verified SDK root','SDK_UNAVAILABLE');}
@@ -55,6 +57,8 @@ export async function openPublicSdk({sdkRoot,realProvider=false}={}){
     if(!lookup(`${prefix}/node_modules/${dep}`))await copyPackage(dep);
    }
   }
+  const sdkVersion=JSON.parse((await bytes('dsh/node_modules/@deepseek-ai/dsh-agent/package.json')).toString('utf8')).version;
+  roots.push(...publicToolPackages(sdkVersion));
   for(const name of roots)await copyPackage(name);
   await writeFile(join(temporary,'package.json'),JSON.stringify({private:true,type:'module'}));
   return{root:temporary,close:()=>rm(temporary,{recursive:true,force:true}),packages:roots};
@@ -95,14 +99,16 @@ export async function launchIsolatedHost({config,mode='dry',apiKeyEnv,model,sdkR
  const aborted=()=>{void close().catch(()=>{});};signal?.addEventListener('abort',aborted,{once:true});
  try{
   sdk=await openPublicSdk({sdkRoot,realProvider:mode==='real'});assertOpen();
-  const require=createRequire(join(sdk.root,'package.json'));const sdkVersion=require('@deepseek-ai/dsh-agent/package.json').version;if(!VERIFIED_SDK_VERSIONS.includes(sdkVersion))throw failure('Public SDK version is not verified','SDK_UNAVAILABLE');for(const name of sdk.packages){const version=require(`${name}/package.json`).version;if(version!==(name==='@deepseek-ai/cordis'?'4.0.5':sdkVersion))throw failure('Public SDK exact version mismatch','SDK_UNAVAILABLE');}
+  const require=createRequire(join(sdk.root,'package.json'));const sdkVersion=require('@deepseek-ai/dsh-agent/package.json').version;if(!VERIFIED_SDK_VERSIONS.includes(sdkVersion))throw failure('Public SDK version is not verified','SDK_UNAVAILABLE');if(!nodeSupportsSdk(sdkVersion,process.versions.node))throw failure('Public SDK Node requirement is not met','SDK_UNAVAILABLE');for(const name of sdk.packages){const version=require(`${name}/package.json`).version;if(version!==(name==='@deepseek-ai/cordis'?SDK_PROFILES[sdkVersion].cordis:sdkVersion))throw failure('Public SDK exact version mismatch','SDK_UNAVAILABLE');}
   const load=name=>import(pathToFileURL(require.resolve(name)).href);
   const [{Context},{default:Agents},{default:AgentLoop},{default:SystemPrompt},{default:Tools},{default:Llm,LlmAdapter,createUserMessage},{default:Sessions},{default:Projections},{default:DefaultModel},{createLaunchEnvironmentSnapshot}]=await Promise.all(KERNEL.map(load));assertOpen();
   ctx=new Context();
   // Without this explicit public snapshot the adapter helper would copy the
   // entire inherited process.env. Only this new exact reference is exposed.
   ctx.provide('launchEnvironment',createLaunchEnvironmentSnapshot([{source:'process',values:mode==='real'?{[apiKeyEnv]:modelKey}:{}}]));modelKey=undefined;
-  for(const [plugin,options]of [[SystemPrompt,{includeHarnessIdentity:false,includeRuntimeContext:false}],[Llm,undefined],[Sessions,undefined],[Projections,undefined],[Tools,{mode:'native'}],[Agents,undefined],[AgentLoop,{agents:[]}],[DefaultModel,{provider:plan.provider,model:plan.selectedModel}]]){await ctx.plugin(plugin,options);assertOpen();}
+  for(const [plugin,options]of [[SystemPrompt,{includeHarnessIdentity:false,includeRuntimeContext:false}],[Llm,undefined],[Sessions,undefined],[Projections,undefined]]){await ctx.plugin(plugin,options);assertOpen();}
+  await mountPublicTools(ctx,{Tools,sdkVersion,load});assertOpen();
+  for(const [plugin,options]of [[Agents,undefined],[AgentLoop,{agents:[]}],[DefaultModel,{provider:plan.provider,model:plan.selectedModel}]]){await ctx.plugin(plugin,options);assertOpen();}
   if(mode==='real'){
    // This public plugin exports apply/inject/Config, with no default export.
    // An explicit root also prevents inherited DEEPSEEK_BASE_URL redirection.
@@ -119,7 +125,7 @@ export async function launchIsolatedHost({config,mode='dry',apiKeyEnv,model,sdkR
   core=await createCore({projects:plan.config.projects,store,executor,timeoutMs:plan.config.timeoutMs});assertOpen();
   bridge=await createBridge({service:core,token,principal:plan.config.principal,port:plan.config.port});assertOpen();
   const ownedClose=async()=>{signal?.removeEventListener('abort',aborted);await close();};
-  return{url:bridge.url,core,summary:{...plan.summary,started:true,url:bridge.url},close:ownedClose};
+  return{url:bridge.url,core,summary:{...plan.summary,modules:sdk.packages,started:true,url:bridge.url},close:ownedClose};
  }catch(error){signal?.removeEventListener('abort',aborted);await close().catch(()=>{});throw error;}
 }
 

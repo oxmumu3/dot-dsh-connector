@@ -21,7 +21,7 @@ function promptFor(job){
 }
 
 /**
- * Public DSH 0.2.1-rc.2 adapter. Fresh sessions only; no presets, existing
+ * Public DSH adapter. Fresh sessions only; no presets, existing
  * conversations, credential stores, shell, or model-accessible tools.
  * Model-request output is capped, a second model step is rejected, and a
  * lifetime AbortSignal bounds creation/active work. Core retains job truth.
@@ -94,6 +94,15 @@ export function createExecutor({ctx,createMessage,isolatedHost=false}={}){
      entry.listeners.push(agentCtx.tools.restrict({allow:[]}));
      entry.listeners.push(agentCtx.tools.guard(()=>'All tools are disabled for Dot connector snapshot tasks'));
      entry.listeners.push(agentCtx.on('tools/pre-execute',()=>({kind:'deny',reason:'All tools are disabled for Dot connector snapshot tasks'})));
+     // New SDKs make tool schemas executor-owned and restore them after the
+     // presentation waterfall. Select an empty description in this owned
+     // scope; dispatch still uses the official executor and the guards above.
+     if(typeof agentCtx.tools.setExecutor==='function'||typeof agentCtx.tools.selectExecutor==='function'){
+      if(typeof agentCtx.tools.setExecutor!=='function'||typeof agentCtx.tools.selectExecutor!=='function')throw new Error('Host scoped tool executor selection is incomplete');
+      const toolExecutor=agentCtx.tools.selectExecutor(agent);
+      if(typeof toolExecutor?.execute!=='function')throw new Error('Host tool executor is unavailable');
+      entry.listeners.push(agentCtx.tools.setExecutor({describe:()=>({schemas:[]}),execute:input=>toolExecutor.execute(input)}));
+     }
      entry.listeners.push(agentCtx.on('system-prompt/assemble',async()=>({sections:[{name:'dot-dsh-connector:task',text:SYSTEM_INSTRUCTIONS,interpolate:false}],contexts:[],tools:[],variables:{provider:route.provider,model:route.model}})));
      // A model route/cap is configuration, never an authorization source. Do
      // not inherit an unrelated request listener's token or tool settings.
