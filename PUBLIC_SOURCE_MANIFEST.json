@@ -20,7 +20,7 @@
     "docs/first-connection-demo/workspace.png"
   ],
   "files": {
-    ".github/workflows/compatibility.yml": "38e85cd43f54c7810bac41f439a4d0d342b9a144ebccb96d059f1cade2d0cdc2",
+    ".github/workflows/compatibility.yml": "ba0d71f7e0459fbdaa8896a812597f32251e7a1bd442a244e78f42a7d5328a8b",
     ".github/workflows/npm-release.yml": "a34940308874711baffedef05b2f0c6e91dd56d48004693d7d44369d70a57a76",
     ".gitignore": "ece36e0bdf50ac1d08be14790bdab4ee9cd93d79dabb625217a46805f8bbc2ae",
     "DESIGN.md": "a54683fffa0964275061162b4a34449f8bdfca88018e3d209ac5dcd2d9de5d87",
@@ -136,7 +136,7 @@
     "src/python-runtime.js": "6e12d52a42d0e5a856ebd72cb7d70695aa287283612180ed3bd113d2abfe36b2",
     "src/store.js": "f5aff04222893ed37066914158806f4ff3a26b4ed6f9a6ea28bf6b8fc91f8097",
     "test/audit-store.test.mjs": "d3b720838ac5b45aa332f82093ddffb02397d8194a332df39004ff2b83e6d56d",
-    "test/ci-compatibility.test.mjs": "792e277181ab20cb46619bb6c0ccd54c7523de56b27a750611a1969d3f74b9bb",
+    "test/ci-compatibility.test.mjs": "0f73474164f63d09aaea041e4575764348de6b4c7076b95defb3d70b806e9f26",
     "test/cloud-status.test.mjs": "cfa8e44799d8c59bf9a9ae892506d1ca4b10cab418f576c9a618cdd726e66e9e",
     "test/codec-compatibility.test.mjs": "4b9a0beb186fe5f7eeec24b624c6f480d010a9cd27bdfe9af478883f1b88e269",
     "test/compatibility-gate.test.mjs": "2f3b7bc8da0b7c3eac6980eff9993b44a34d58e9d1124d25e9ea901b40fe3ca8",
