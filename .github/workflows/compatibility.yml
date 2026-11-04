@@ -110,6 +110,11 @@ jobs:
     steps:
       - *checkout
       - *node
+      - name: Validate actual macOS network proof and failure diagnostics
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/host-proof"
+          node --test test/ci-host-network.test.mjs 2>&1 | tee "$RUNNER_TEMP/host-proof/network-preflight.tap"
       - *npm
       - *dependencies
       - name: Prepare the exact official Host and pnpm 11.28.5

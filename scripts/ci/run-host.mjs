@@ -6,6 +6,7 @@ import {join,dirname} from 'node:path';
 import {tmpdir} from 'node:os';
 import {fileURLToPath,pathToFileURL} from 'node:url';
 import {createHash} from 'node:crypto';
+import {proveHostNetwork} from './host-network-proof.mjs';
 const run=promisify(execFile),here=fileURLToPath(new URL('.',import.meta.url));
 const safeLog=text=>String(text??'').replace(/token=[^&\s]+/g,'token=[synthetic-redacted]');
 export async function runHost({root,carrier,sdk,out,cleanEnvironment,pnpm,offline=false,publicStore,publicCache}){
@@ -32,7 +33,7 @@ export async function runHost({root,carrier,sdk,out,cleanEnvironment,pnpm,offlin
  await writeFile(join(out,'installed-byte-proof.json'),JSON.stringify({installedPackageRoot,allPackedFilesMatch:true,files:installedMembers},null,2)+'\n');
 
  const sandbox=join(out,'network.sb');await writeFile(sandbox,'(version 1)\n(allow default)\n(deny network*)\n(allow network-bind (local ip "localhost:*"))\n(allow network-inbound (local ip "localhost:*"))\n(allow network-outbound (remote ip "localhost:*"))\n(deny file-read* file-write* (subpath "/Applications"))\n(deny process-exec (subpath "/Applications"))\n');
- const network=await run('/usr/bin/sandbox-exec',['-f',sandbox,process.execPath,join(here,'network-proof.mjs')],{cwd:project,env,timeout:10000,maxBuffer:65536});const networkProof=JSON.parse(network.stdout);await writeFile(join(out,'network-proof.json'),JSON.stringify(networkProof,null,2)+'\n');
+ const networkProof=await proveHostNetwork({sandbox,out,cwd:project,env});
  const patch=join(directory,'proof.patch.yml');await writeFile(patch,JSON.stringify([{insert:[{id:'management-ci-host-proof',name:pathToFileURL(join(here,'host-observer.mjs')).href,config:{package:packed[0].name,version:packed[0].version}}]}]));
  const child=spawn('/usr/bin/sandbox-exec',['-f',sandbox,process.execPath,cli,'--profile','web','--patch',patch,'--host','127.0.0.1','--port','0','--no-open'],{cwd:project,env,stdio:['ignore','pipe','pipe','ipc']});let hostOut='',hostErr='',sent=false,result;
  try{result=await new Promise((resolve,reject)=>{
