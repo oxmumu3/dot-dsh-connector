@@ -1,8 +1,20 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {validateCompatibility} from '../scripts/check-compatibility.mjs';
+import {mkdtemp,mkdir,copyFile,readFile,writeFile,rm} from 'node:fs/promises';
+import {join,dirname} from 'node:path';
+import {tmpdir} from 'node:os';
 const root=new URL('../',import.meta.url);
 const official={name:'@deepseek-ai/dsh',versions:['0.2.1-rc.1','0.2.1-rc.2','0.2.1-rc.3','0.2.1-rc.4','0.2.1-rc.5','0.2.2-rc.1'],'dist-tags':{latest:'0.2.1-rc.5'}};
+test('a new native UI SDK peer cannot drift outside the exact reviewed range',async t=>{
+ const fixture=await mkdtemp(join(tmpdir(),'dot-peer-contract-'));t.after(()=>rm(fixture,{recursive:true,force:true}));
+ for(const file of ['compatibility.json','package.json','management-plugin/package.json','package-lock.json','npm-shrinkwrap.json','management-plugin/src/compatibility.js']){
+  await mkdir(join(fixture,dirname(file)),{recursive:true});await copyFile(new URL('../'+file,import.meta.url),join(fixture,file));
+ }
+ const file=join(fixture,'management-plugin/package.json'),metadata=JSON.parse(await readFile(file,'utf8'));
+ metadata.peerDependencies['@deepseek-ai/dsh-client-ui-session']='0.1.0-rc.6';await writeFile(file,JSON.stringify(metadata));
+ await assert.rejects(validateCompatibility({root:fixture,official}),/dsh-client-ui-session/);
+});
 test('compatibility gate reconciles the exact verified declarations with official SDK discovery',async()=>{
  const result=await validateCompatibility({root,official});assert.equal(result.latestOfficial,'0.2.2-rc.1');assert.deepEqual(result.verifiedSdks,official.versions.slice(1));
 });

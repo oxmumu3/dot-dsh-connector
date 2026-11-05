@@ -24,6 +24,7 @@ const definiteStatuses = new Set(['succeeded', 'failed', 'cancelled']);
 const jobStatuses = z.enum(['accepted', 'starting', 'running', 'cancel_requested', 'succeeded', 'failed', 'cancelled', 'unknown']);
 const selectorsSchema = z.object({
   project_id: knownId.optional(), workspace_id: knownId.optional(), session_id: knownId.optional(), job_id: knownId.optional(),
+  interaction_id: knownId.optional(), decision: z.enum(['allow_once','deny']).optional(),
   path: humanText().optional(), offset: integer.optional(), limit: integer.optional(), max_bytes: integer.optional(),
 }).strict();
 const summarySchema = z.object({

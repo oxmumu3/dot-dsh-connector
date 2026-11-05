@@ -5,7 +5,7 @@ export const HARNESS_TOOL_NAMES = Object.freeze([
   'harness_status', 'harness_list_workspaces', 'harness_list_sessions',
   'harness_read_session', 'harness_list_directory', 'harness_read_file',
 ]);
-export const NATIVE_TASK_TOOL_NAMES=Object.freeze(['harness_start_task','harness_get_task','harness_followup_task','harness_cancel_task','harness_list_tasks','harness_archive_task']);
+export const NATIVE_TASK_TOOL_NAMES=Object.freeze(['harness_start_task','harness_get_task','harness_followup_task','harness_cancel_task','harness_list_tasks','harness_archive_task','harness_answer_question','harness_decide_approval']);
 const TOOLS = new Set(['list_projects', 'read_project_context', 'start_task', 'get_task', 'cancel_task', ...HARNESS_TOOL_NAMES,...NATIVE_TASK_TOOL_NAMES]);
 const MANAGEMENT_TOOLS = new Set(['manager_overview','manager_events','manager_jobs','manager_job','manager_set_paused','manager_cancel','manager_worker_poll','manager_archive','manager_followup']);
 const PUBLIC_ERRORS = Object.freeze({

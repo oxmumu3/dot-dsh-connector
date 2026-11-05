@@ -18,7 +18,7 @@ test('native execution MCP tools are opt-in and describe normal file/command eff
  await client.callTool({name:'harness_start_task',arguments:{workspace_id:'normal-workspace',task:'Create a file and run the project check.',request_id:'same-request'}});
  assert.deepEqual(calls,[{tool:'harness_start_task',args:{workspace_id:'normal-workspace',task:'Create a file and run the project check.',request_id:'same-request'}}]);
  const legacy=await mcp(t,{call:async()=>({})});assert.equal((await legacy.listTools()).tools.length,5);
- const nativeOnly=await mcp(t,{fixtureTasks:false,harnessRead:true,harnessExecution:true,call:async()=>({})});assert.equal((await nativeOnly.listTools()).tools.length,12);
+ const nativeOnly=await mcp(t,{fixtureTasks:false,harnessRead:true,harnessExecution:true,call:async()=>({})});assert.equal((await nativeOnly.listTools()).tools.length,14);
 });
 test('normal tasks share admission and metadata audit without being forced into the old fixture job schema',async()=>{
  const log=audit(),calls=[],nativeJob={job_id:JOB,project_id:'normal-workspace',workspace_id:'normal-workspace',status:'accepted',message_id:null,session_id:'owned-native-session',task:'write project file',result:null,created_at:'2026-10-22T00:00:00.000Z',finished_at:null,acceptance:'unverified'};

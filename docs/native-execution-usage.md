@@ -51,7 +51,7 @@ DOT_DSH_TOKEN=<由本地安全启动器注入，勿填写实际值>
 
 命令为 `node /absolute/path/to/dot-dsh-connector/scripts/mcp.mjs`，不带参数。`DOT_DSH_BRIDGE_URL` 当前仍为启动必填项，即使已关闭 fixture 工具。三个 URL 均为数字 loopback `/rpc`，不得含账号、query 或 fragment。
 
-该配置应发现六个读取工具和六个原生任务工具，共 12 个。配置 `DOT_DSH_NATIVE_TASKS_URL` 不会自动安装或启用 renderer worker；发现工具也不会启动模型任务。Tunnel、MCP、管理器和读取服务需在线，任务另依赖当前 Harness renderer 与 Host。
+该配置应发现六个读取工具和八个原生任务工具，共 14 个。配置 `DOT_DSH_NATIVE_TASKS_URL` 不会自动安装或启用 renderer worker；发现工具也不会启动模型任务。Tunnel、MCP、管理器和读取服务需在线，任务另依赖当前 Harness renderer 与 Host。
 
 `harness_status` 的 `existing_harness_read_only` 仅表示持久化读取服务的模式。任务能力由原生任务工具单独提供，网关新增 `capabilities.native_tasks` 报告最近 worker 状态，不能从这个读取状态字段推断整个连接没有写入权限。
 
@@ -60,7 +60,7 @@ DOT_DSH_TOKEN=<由本地安全启动器注入，勿填写实际值>
 1. 用 `harness_list_workspaces` 取得 workspace ID。只有当前 Host registry 中的真实项目可执行；额外 memory/skills/instructions 根不可作为项目派活。
 2. 调用 `harness_start_task({workspace_id,task,request_id})`。任务最多 8,000 字符；外部 `request_id` 为 1–100 位字母、数字、下划线或短横线。
 3. 保存返回的 `native_job_*` 和 `dsh_dot_*` 会话 ID，用 `harness_get_task({job_id})` 查询；不要把 session ID 当 job ID。
-4. `pending_approvals` 或 `user_question_count` 大于零时，在 Harness 中审批或回答后再查询，连接器不自动批准。
+4. 用 `harness_get_task` 读取当前 `interactions`。Dot 展示原问题或操作请求，取得用户具体答复后调用 `harness_answer_question` 或 `harness_decide_approval`；也可在 Harness 处理。只允许本次批准或拒绝，不自动批准。详见[远程问答与单次审批](remote-interactions.md)。
 5. 已结束自有任务可调用 `harness_followup_task({job_id,task,request_id})`。同一会话产生新的 attempt/job，保留 parent/root 关联。
 6. 运行中补充可显式指定 `mode:queue`（排队）或 `mode:steer`（当前执行中补充）；省略 mode 仍是 `after_complete`。投递的原生 turn 不符合已记录父任务时保留待核实，不自动重发。
 7. 用 `harness_list_tasks` 按 workspace_id、request_id、status、archived 与 offset/limit 查找任务。默认只列未归档；列表提供 stage、项目/会话标题和最近活动。

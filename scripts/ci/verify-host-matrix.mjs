@@ -3,6 +3,7 @@ import {readFile,writeFile} from 'node:fs/promises';
 import {resolve,join} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {VERIFIED_SDK_VERSIONS,sdkCordisVersion} from '../../management-plugin/src/compatibility.js';
+const UI_SDK_PEERS=['@deepseek-ai/dsh-client-ui-session','@deepseek-ai/dsh-client-ui-approval','@deepseek-ai/dsh-client-ui-user-questions'];
 export async function verifyHostMatrix({directory,sdks}={}){
  assert.ok(Array.isArray(sdks)&&sdks.length>0&&new Set(sdks).size===sdks.length&&sdks.every(sdk=>VERIFIED_SDK_VERSIONS.includes(sdk)),'Invalid exact Host SDK matrix');
  const results=[];let archive;
@@ -12,6 +13,7 @@ export async function verifyHostMatrix({directory,sdks}={}){
   for(const field of ['passed','ownerEnforced','pinnedProtocolErrorRoundTrip','onlyOwnHostExited'])assert.equal(proof[field],true,sdk+' '+field);
   for(const field of ['productionProfileUsed','compatibilityOverride'])assert.equal(proof[field],false,sdk+' '+field);
   assert.equal(proof.installedAbi?.protocol?.version,sdk,'Host protocol mismatch');assert.equal(proof.installedAbi?.cordis?.version,sdkCordisVersion(sdk),'Host Cordis mismatch');
+  for(const name of UI_SDK_PEERS)assert.equal(proof.installedAbi?.peers?.[name]?.version,sdk,sdk+' UI SDK peer '+name+' mismatch');
   assert.ok(Number.isSafeInteger(proof.installedFileCount)&&proof.installedFileCount>0,'Missing installed file proof');assert.match(proof.tarballSha256,/^[a-f0-9]{64}$/);
   archive??=proof.tarballSha256;assert.equal(proof.tarballSha256,archive,'Host archive mismatch');
   for(const field of ['loopback','nonLoopbackDenied','customLookupDenied','nonNodeChildDenied'])assert.equal(proof.network?.[field],true,sdk+' network '+field);

@@ -1,5 +1,7 @@
 # Dot → Harness 插件
 
+开发候选 `0.6.0-preview.25` 新增在 Dot 回答原生追问和逐次批准／拒绝操作；目前公开 npm `latest` 仍为已发布的 preview.24。候选的五 SDK、安装和真实 Dot 验收完成后才发布。[新能力说明](docs/remote-interactions.md)。
+
 设计思考与生态复盘：[《DeepSeek Harness 要走向极客玩具还是大众普惠？》](https://mp.weixin.qq.com/s/RIAYNqo8OsUVx2JpR8MPyA)
 
 当前版本 `0.6.0-preview.24` 已发布到 npm `latest`，兼容官方 Harness Desktop `0.2.2-rc.1`，并保留 `0.2.1-rc.2` / `rc.3` / `rc.4` / `rc.5`。此前的连接、任务与持久会话读取修复继续保留；实测范围见[验收记录](docs/verification.md)。
@@ -39,7 +41,7 @@ pnpm 11 默认有 24 小时发布冷却期，`@latest` 可能仍选择成熟旧�
 
 ## 日常使用
 
-Harness 需要保持运行，关闭「Dot 连接」页面不会停止后台连接。任务需要回答或审批时，打开对应 Harness 会话处理。插件沿用现有审批设置，不会自动替你批准。
+Harness 需要保持运行，关闭「Dot 连接」页面不会停止后台连接。候选升级并刷新连接能力后，任务需要回答时可在 Dot 回复原始问题；需要操作审批时可明确本次允许或拒绝。Harness 仍保留原会话处理入口，插件不会自行批准。
 
 要接着做，告诉 Dot 找到原任务并继续；超时或状态待核实时查询原任务，不要重新派发相同写操作。取消不会撤销已经执行的命令和文件修改；归档也不会删除项目文件。
 
@@ -57,7 +59,7 @@ Harness 需要保持运行，关闭「Dot 连接」页面不会停止后台连�
 
 ## 开发与接口
 
-用户只需要安装 `@oxmumu3/dot-dsh-management` 这一个原生插件。仓库根包 `dot-dsh-connector` 是开发与 MCP 配套源码，不作为第二个原生插件安装。当前连接提供六个读取工具和六个原生任务工具；原生任务沿用 Harness 已登记的真实项目与会话归属检查。
+用户只需要安装 `@oxmumu3/dot-dsh-management` 这一个原生插件。仓库根包 `dot-dsh-connector` 是开发与 MCP 配套源码，不作为第二个原生插件安装。开发候选提供六个读取工具和八个原生任务工具（共 14 项，须包含 `harness_answer_question` 与 `harness_decide_approval`）；原生任务沿用 Harness 已登记的真实项目与会话归属检查。
 
 [工具与原生任务](docs/native-execution-usage.md) · [读取与分页](docs/harness-read-usage.md) · [管理界面](docs/management-usage.md) · [旧部署维护](docs/operator-runbook.md)
 

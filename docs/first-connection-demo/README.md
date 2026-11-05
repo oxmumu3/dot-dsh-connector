@@ -1,10 +1,12 @@
 # 首次连接流程模拟
 
-[打开交互模拟](index.html)
+[打开历史交互模拟](index.html)
+
+此离线模拟保留 preview.12 的首次连接流程，不是当前版本的安装入口。请按[当前安装说明](../install-and-connect.md)安装；当前版本、续期和实际验收以[验收记录](../verification.md)为准。
 
 当前模拟对应 `0.6.0-preview.12`（2026-10-23），新增缺少 Ego 时的安装确认与本人首次设置分支。原生插件已安装启用，安装后的真实 Dot 读取与派任务验收已通过；Ego 安装路径另通过真实隔离实测。GUI 首次设置与完全空白机器仍未验收。下方 preview.1 源码行号及浏览器走查保留为历史记录。
 
-这是对当前流程的拆解。HTML 单文件可离线打开，不依赖远程字体、脚本或图片；不收集账号、安装应用、调用服务、创建密钥或派发真实任务。官方页面使用简化示意。preview.12 已通过安装后的真实读取与派任务；本轮本人另完成了 Ego 中的 Google 交互登录。模拟结果不代表浏览者自己的账号已经连接。
+这是对 preview.12 流程的拆解。HTML 单文件可离线打开，不依赖远程字体、脚本或图片；不收集账号、安装应用、调用服务、创建密钥或派发真实任务。官方页面使用简化示意。preview.12 已通过安装后的真实读取与派任务；本轮本人另完成了 Ego 中的 Google 交互登录。模拟结果不代表浏览者自己的账号已经连接。
 
 ## 实际需要多少步
 
@@ -71,7 +73,7 @@ preview.12 的安装模块回归 31/31 通过。正式安装代码使用已校�
 | 实际 Dot 自动发送与完成回执验证 | `management-plugin/src/onboarding-browser.js:191`、`management-plugin/src/onboarding-runtime.js:69-77,100-104` |
 | 创建后可直接读到已关联证据，非必经独立 Connect | `test/fixtures/onboarding-browser/pages.mjs:6-8`、`test/onboarding-browser.test.mjs:24` |
 
-当前代码不勾选风险框、不替用户点击最终授权；测试中的这些点击模拟的是人，不是产品自动化。当前运行密钥为 30 天有效，尚无自助换钥/续期入口。
+当前代码不勾选风险框、不替用户点击最终授权；测试中的这些点击模拟的是人，不是产品自动化。该 preview.1 历史基线的运行密钥为 30 天有效，当时尚无自助换钥/续期入口；后续版本已增加，见[首次连接说明](../first-connection.md)。
 
 preview.1 的独立审计曾指出登录等待超时风险；它属于旧实现的审计记录，不能作为当前 ego 实现仍有同一故障的结论。当前连接逻辑见 `management-plugin/src/onboarding-ego.js`、`onboarding-ego-platform.js`、`onboarding-ego-plugin.js` 与 `onboarding-runtime.js`。preview.9 的真实验收使用既有登录；本轮 Google 交互登录、候选构建及安装分别以 [验收记录](../verification.md) 为准。
 

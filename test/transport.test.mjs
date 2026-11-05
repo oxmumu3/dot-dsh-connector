@@ -26,6 +26,8 @@ const NATIVE_CASES = [
   ['harness_archive_task', { job_id:NATIVE_JOB_ID, archived:true }],
   ['harness_followup_task', { job_id: NATIVE_JOB_ID, task: 'Verify the previous change.', request_id: 'native-followup' }],
   ['harness_cancel_task', { job_id: NATIVE_JOB_ID }],
+  ['harness_answer_question', {job_id:NATIVE_JOB_ID,interaction_id:'question-one',request_id:'answer-one',answers:[{id:'format',selected:['Markdown']}]}],
+  ['harness_decide_approval', {job_id:NATIVE_JOB_ID,interaction_id:'approval-one',request_id:'decision-one',decision:'deny'}],
 ];
 
 async function memoryClient(t, options) {
@@ -384,7 +386,7 @@ test('synthetic Harness SDK: opt-in must be boolean and omitted option keeps Har
   assert.equal(calls.length, 0);
 });
 
-test('synthetic Harness HTTP: bridge permits the exact twelve read and native names and rejects unknown authority', async (t) => {
+test('synthetic Harness HTTP: bridge permits the exact fourteen read and native names and rejects unknown authority', async (t) => {
   const endpoint = await bridge(t);
   const cases = [...HARNESS_CASES, ...NATIVE_CASES];
   for (const [tool, args] of cases) {
@@ -395,7 +397,7 @@ test('synthetic Harness HTTP: bridge permits the exact twelve read and native na
   for (const tool of ['harness_rpc', 'harness_status_extra', 'harness_write_file', 'harness_start_task_extra', 'harness_cancel_session']) {
     assert.equal((await rpc(endpoint.url, { body: JSON.stringify({ tool, args: {} }) })).status, 400);
   }
-  assert.equal(endpoint.calls.length, 12);
+  assert.equal(endpoint.calls.length, 14);
 });
 
 test('synthetic Harness CLI: exact read tools route only to the separate bridge, legacy tools retain their endpoint', { timeout: 60_000 }, async (t) => {
@@ -464,8 +466,8 @@ test('synthetic native SDK: execution opt-in and fixture disable select exact to
     for (const [name] of NATIVE_CASES) {
       const definition = tools.find(tool => tool.name === name);
       assert.equal(definition.annotations.readOnlyHint, ['harness_get_task','harness_list_tasks'].includes(name));
-      assert.equal(definition.annotations.openWorldHint, ['harness_start_task', 'harness_followup_task'].includes(name));
-      assert.equal(definition.annotations.destructiveHint, name === 'harness_cancel_task');
+      assert.equal(definition.annotations.openWorldHint, ['harness_start_task', 'harness_followup_task','harness_answer_question','harness_decide_approval'].includes(name));
+      assert.equal(definition.annotations.destructiveHint, ['harness_cancel_task','harness_answer_question','harness_decide_approval'].includes(name));
       assert.equal(definition.annotations.idempotentHint, true);
       assert.equal(definition.inputSchema.additionalProperties, false);
     }
@@ -492,10 +494,10 @@ test('synthetic native SDK: unknown tools and excess native selectors never reac
   assert.equal(calls.length, 0);
 });
 
-test('synthetic native CLI: all six native tools use their dedicated endpoint and never route through fixture or reader', { timeout: 60_000 }, async (t) => {
+test('synthetic native CLI: all eight native tools use their dedicated endpoint and never route through fixture or reader', { timeout: 60_000 }, async (t) => {
   const legacy = await bridge(t), harness = await bridge(t), native = await bridge(t);
   const client = await stdioClient(t, { DOT_DSH_BRIDGE_URL: legacy.url, DOT_DSH_HARNESS_BRIDGE_URL: harness.url, DOT_DSH_NATIVE_TASKS_URL: native.url });
-  assert.equal((await client.listTools()).tools.length, 17);
+  assert.equal((await client.listTools()).tools.length, 19);
   assert.equal(legacy.calls.length + harness.calls.length + native.calls.length, 0);
   for (const [name, args] of NATIVE_CASES) assert.equal((await client.callTool({ name, arguments: args })).isError, undefined);
   assert.deepEqual(native.calls, NATIVE_CASES.map(([name, args]) => [PRINCIPAL, name, args]));
@@ -504,15 +506,15 @@ test('synthetic native CLI: all six native tools use their dedicated endpoint an
   await client.callTool({ name: 'start_task', arguments: { project_id: 'fixture', task: 'Read fixture README', request_id: 'fixture-request' } });
   assert.deepEqual(harness.calls, [[PRINCIPAL, 'harness_status', {}]]);
   assert.deepEqual(legacy.calls.map(([, name]) => name), ['start_task']);
-  assert.equal(native.calls.length, 6);
+  assert.equal(native.calls.length, 8);
 });
 
-test('synthetic native CLI: fixture disable exposes exactly twelve Harness tools and legacy names remain unavailable', { timeout: 60_000 }, async (t) => {
+test('synthetic native CLI: fixture disable exposes exactly fourteen Harness tools and legacy names remain unavailable', { timeout: 60_000 }, async (t) => {
   const legacy = await bridge(t), harness = await bridge(t), native = await bridge(t);
   const client = await stdioClient(t, { DOT_DSH_BRIDGE_URL: legacy.url, DOT_DSH_HARNESS_BRIDGE_URL: harness.url, DOT_DSH_NATIVE_TASKS_URL: native.url, DOT_DSH_FIXTURE_TASKS: 'disabled' });
   const { tools } = await client.listTools();
   assert.deepEqual(tools.map(tool => tool.name), [...HARNESS_CASES, ...NATIVE_CASES].map(([name]) => name));
-  assert.equal(tools.length, 12);
+  assert.equal(tools.length, 14);
   assert.equal(legacy.calls.length + harness.calls.length + native.calls.length, 0);
   for (const [name, args] of [...HARNESS_CASES, ...NATIVE_CASES]) assert.equal((await client.callTool({ name, arguments: args })).isError, undefined);
   for (const [name, args] of [
@@ -539,7 +541,7 @@ test('synthetic native CLI: unavailable native transport and native errors never
       assert.equal(JSON.parse(result.content[0].text).error.code, state === 'offline' ? 'BACKEND_OFFLINE' : 'NATIVE_UNAVAILABLE');
       assert.doesNotMatch(JSON.stringify(result), /private native|synthetic-transport-test-token|ECONNREFUSED|127\.0\.0\.1/);
     }
-    assert.equal(nativeCalls.length, state === 'offline' ? 0 : 6);
+    assert.equal(nativeCalls.length, state === 'offline' ? 0 : 8);
     assert.equal(legacy.calls.length + harness.calls.length, 0);
   }
 });

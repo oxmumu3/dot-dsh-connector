@@ -14,6 +14,17 @@ test('carriers pin actual public contracts and all admitted package versions',()
  assert.equal(carrierDependencies('0.2.1-rc.5',manifest,true)['@deepseek-ai/dsh'],'0.2.1-rc.5');
  assert.equal(carrierDependencies('0.2.1-rc.5',manifest,true).pnpm,'11.28.5');
 });
+test('interaction regression carriers include the exact official Client controllers and pending-card domains',()=>{
+ for(const sdk of manifest.verifiedSdks){
+  const deps=carrierDependencies(sdk,manifest);
+  for(const name of ['dsh-client-store','dsh-client-ui-slots','dsh-client-ui-session','dsh-client-ui-approval','dsh-client-ui-user-questions','dsh-api-session-controller'])assert.equal(deps['@deepseek-ai/'+name],sdk,name);
+  assert.equal(deps.zustand,'4.5.7');assert.equal(deps.immer,'10.1.1');
+ }
+});
+test('every SDK regression includes the native control broker, worker, MCP and real interaction services',async()=>{
+ const runner=await readFile(new URL('../scripts/ci/run-sandbox.py',import.meta.url),'utf8');
+ for(const name of ['native-tasks','native-worker','native-interactions','mcp-native-interactions','native-interaction-sdk'])assert.ok(runner.includes("'"+name+"'"),name);
+});
 test('child processes receive synthetic paths without inherited keys or GitHub tokens',()=>{
  const env=cleanEnvironment('/synthetic/home',{PATH:'/node:/usr/bin',OPENAI_API_KEY:'private',GITHUB_TOKEN:'private',DSH_HOME:'/private/daily'});
  assert.equal(env.HOME,'/synthetic/home');assert.equal(env.DSH_HOME,'/synthetic/home/dsh');assert.equal(env.OPENAI_API_KEY,undefined);assert.equal(env.GITHUB_TOKEN,undefined);assert.equal(env.PATH,'/node:/usr/bin');

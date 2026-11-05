@@ -24,8 +24,10 @@ function fixture(action,extra={}){
   if(url.endsWith('claim')){assert.deepEqual(Object.keys(body).sort(),['claim_token','client_id','command_id']);offered=false;return{ok:true,json:async()=>({result:{command:cmd,lease_token:lease,expires_at:new Date(state.now+60000).toISOString()}})};}
   reports.push(body);if(failReport-->0)throw Error('synthetic transport private detail');if(terminalReport){terminalReport=false;return{ok:false,status:403,json:async()=>({error:{code:'NATIVE_DENIED',message:'fixed'}})};}return{ok:true,json:async()=>({result:{accepted:true}})};
  };
- const worker=createNativeWorker({remote,overview:async()=>{overviewCalls++;return ok({native_control:offered?{command_id:cmd.command_id,claim_token:token}:null,...Object.hasOwn(state,'workerUrl')?{native_worker_url:state.workerUrl}:{}});},fetchImpl,location:{protocol:'dsh-app:',hostname:'app'},randomUUID:()=>RID,now:()=>state.now,diagnostic:(...value)=>diagnostics.push(value)});
- return{worker,calls,reports,diagnostics,state,overviewCalls:()=>overviewCalls,failNextReport(){failReport=1;},expireNextReport(){terminalReport=true;}};
+ const uiSession=Object.hasOwn(state,'pendingInteraction')?{sessionStatus:{getSnapshot:()=>new Map([[SID,{pendingInteraction:state.pendingInteraction}]])}}:undefined;
+ if(state.pendingInteraction?.answer){const carrier=state.pendingInteraction,answer=carrier.answer;carrier.answer=async function(value){await answer.call(this,value);if(state.noAnswerAcknowledgement)return;let seq=Math.max(0,...state.records.map(record=>record.event?.seq??0))+1;if(this.kind==='approval'){state.records.push(event('approval/decided',seq,{id:'audit-approval',outcome:value}));}else if(this.getSnapshot().state==='continued'){state.records.push(event('turn/start',seq++,{turn:5}),event('user/message',seq,{id:'00000000-0000-4000-8000-000000000009',source:{kind:'user-question-reply',callId:this.callId,outcome:'answered'},content:[{type:'text',text:JSON.stringify({kind:'answer_to_pending_question',tool:'ask_user_question',callId:this.callId,answers:value.answers})}]}));state.running=true;state.questions=[];}else state.records.push(event('tool/result',seq,{turn:4,step:1,message:{toolCallId:this.callId??'call-question',content:[{type:'text',text:JSON.stringify(value)}]}}));state.pendingInteraction=undefined;};}
+ const worker=createNativeWorker({remote,uiSession,timeoutMs:state.timeoutMs??30000,overview:async()=>{overviewCalls++;return ok({native_control:offered?{command_id:cmd.command_id,claim_token:token}:null,...Object.hasOwn(state,'workerUrl')?{native_worker_url:state.workerUrl}:{}});},fetchImpl,location:{protocol:'dsh-app:',hostname:'app'},randomUUID:()=>RID,now:()=>state.now,diagnostic:(...value)=>diagnostics.push(value)});
+ return{worker,calls,reports,diagnostics,state,overviewCalls:()=>overviewCalls,failNextReport(){failReport=1;},expireNextReport(){terminalReport=true;},offer(action,extra={}){for(const key of Object.keys(cmd))delete cmd[key];Object.assign(cmd,command(action,extra));offered=true;}};
 }
 const event=(type,seq,data)=>({type:'event',event:{type,seq,data}});
 const taskEvents=(requestId=RID)=>[
@@ -53,7 +55,7 @@ test('prompt uses stable request ID and normal native queue after verifying work
  const g=fixture('prompt',{cwd:'/other',command:{task:'Never execute',expected_cwd:'/workspace/project'}});await g.worker.poll();assert.equal(g.calls.some(x=>x[0]==='prompt'),false);assert.equal(g.reports[0].result.error_code,'IDENTITY_MISMATCH');g.worker.close();
 });
 test('inspect normalizes direct user messages by the native turn and omits raw tool/private payloads',async()=>{
- const f=fixture('inspect',{records:taskEvents(),questions:[{secret:'private question'}]});await f.worker.poll();const r=f.reports[0].result;assert.equal(r.events.length,4);assert.deepEqual(r.events[1],{type:'user/message',seq:2,turn:4,message_id:'00000000-0000-4000-8000-000000000003',source_rpc_id:RID,source_kind:'user'});assert.equal(r.events[2].text,'Done');assert.equal(r.events[3].reason,'completed');assert.equal(r.user_question_count,1);assert.doesNotMatch(JSON.stringify(r),/private/);f.worker.close();
+ const f=fixture('inspect',{records:taskEvents(),questions:[{secret:'private question'}]});await f.worker.poll();const r=f.reports[0].result;assert.equal(r.events.length,4);assert.deepEqual(r.events[1],{type:'user/message',seq:2,turn:4,message_id:'00000000-0000-4000-8000-000000000003',source_rpc_id:RID,source_kind:'user'});assert.equal(r.events[2].text,'Done');assert.equal(r.events[3].reason,'completed');assert.equal(r.user_question_count,0);assert.doesNotMatch(JSON.stringify(r),/private/);f.worker.close();
 });
 test('a report timeout retries only its identical body and never reexecutes the mutation',async()=>{
  const f=fixture('prompt',{command:{task:'Once'}});f.failNextReport();await f.worker.poll();await f.worker.poll();assert.equal(f.calls.filter(x=>x[0]==='prompt').length,1);assert.equal(f.reports.length,2);assert.deepEqual(f.reports[0],f.reports[1]);f.worker.close();
@@ -83,7 +85,7 @@ test('native factory starts a renderer-scoped worker without opening the managem
   const lifecycle=[],disposers=[],injections=[],React={createElement(){}};
   const ctx={remote:{$mount:async()=>{},dotDshManagement:{overview:async()=>({ok:true,value:{}})}},slots:{inject:(_name,callback)=>callback(),register(){}},inject:async(services,callback)=>{injections.push(services);return callback(ctx);},effect:callback=>disposers.push(callback())};
   const api=managementClientFactory(name=>({react:React,zod:{z}}[name]),undefined,()=>()=>null,options=>{assert.equal(options.remote,ctx.remote);return{start(){lifecycle.push('start');},close(){lifecycle.push('close');}};});
-  await api.apply(ctx);assert.deepEqual(injections,[['remote.dotDshManagement'],['uiWorkspace'],['workspaces'],['remote.workspace','remote.session']]);assert.deepEqual(lifecycle,['start']);for(const dispose of disposers)dispose();assert.deepEqual(lifecycle,['start','close']);
+  await api.apply(ctx);assert.deepEqual(injections,[['remote.dotDshManagement'],['uiWorkspace'],['workspaces'],['remote.workspace','remote.session','uiSession']]);assert.deepEqual(lifecycle,['start']);for(const dispose of disposers)dispose();assert.deepEqual(lifecycle,['start','close']);
  }finally{if(previous===undefined)delete globalThis.location;else globalThis.location=previous;}
 });
 test('a message-aligned opening pages back for the turn anchor before correlating the user request',async()=>{
@@ -121,7 +123,7 @@ for(const mode of ['queue','steer'])test(`active ${mode} uses the native mode on
 });
 
 test('inspection returns verified native titles, activity and bounded actionable questions without raw projection data',async()=>{
- const f=fixture('inspect',{workspaceTitle:'Project title',sessionTitle:'Session title',updatedAt:Date.parse('2026-10-22T13:00:00Z'),records:taskEvents(),questions:[{callId:'question-call',state:'open',secret:'not-returned',questions:[{id:'choice',question:'Which action?',header:'Choose',detail:'Details',multiSelect:true,options:[{label:'Continue',description:'Proceed safely'}]}]}]});
+ const f=fixture('inspect',{workspaceTitle:'Project title',sessionTitle:'Session title',updatedAt:Date.parse('2026-10-22T13:00:00Z'),records:taskEvents().map(r=>r.event.seq===3?event('tool/call',3,{turn:4,step:1,callId:'question-call',name:'ask_user_question',arguments:'{}'}):r),questions:[{callId:'question-call',state:'open',secret:'not-returned',questions:[{id:'choice',question:'Which action?',header:'Choose',detail:'Details',multiSelect:true,options:[{label:'Continue',description:'Proceed safely'}]}]}]});
  await f.worker.poll();const r=f.reports[0].result;assert.equal(r.workspace_name,'Project title');assert.equal(r.session_name,'Session title');assert.equal(r.last_activity_at,'2026-10-22T13:00:00.000Z');assert.equal(r.questions[0].question,'Which action?');assert.equal(r.questions[0].call_id,'question-call');assert.equal(r.questions[0].multi_select,true);assert.equal(r.questions_truncated,false);assert.doesNotMatch(JSON.stringify(r),/not-returned/);f.worker.close();
 });
 
@@ -137,7 +139,7 @@ test('a manually mixed active turn fails closed even when the last message match
 
 test('oversized question lists are bounded as a whole and explicitly marked truncated',async()=>{
  const questions=Array.from({length:20},(_,i)=>({id:`question-${i}`,question:'问'.repeat(2000),detail:'细'.repeat(4000),options:Array.from({length:12},()=>({label:'选'.repeat(300),description:'描'.repeat(1000)}))}));
- const f=fixture('inspect',{records:taskEvents(),questions:[{callId:'call-many',state:'open',questions}]});await f.worker.poll();const r=f.reports[0].result;assert.equal(r.ok,true);assert.ok(r.questions.length>0);assert.equal(r.questions_truncated,true);assert.ok(Buffer.byteLength(JSON.stringify(r.questions))<=40000);f.worker.close();
+ const f=fixture('inspect',{records:taskEvents().map(r=>r.event.seq===3?event('tool/call',3,{turn:4,step:1,callId:'call-many',name:'ask_user_question',arguments:'{}'}):r),questions:[{callId:'call-many',state:'open',questions}]});await f.worker.poll();const r=f.reports[0].result;assert.equal(r.ok,true);assert.ok(r.questions.length>0);assert.equal(r.questions_truncated,true);assert.ok(Buffer.byteLength(JSON.stringify(r.questions))<=40000);f.worker.close();
 });
 
 test('cancel refuses earlier manual input even when the last active message is connector-owned',async()=>{
@@ -149,4 +151,112 @@ test('cancelling an original task refuses a newer active steering child while th
  const parent='00000000-0000-4000-8000-000000000007',records=taskEvents(parent).slice(0,-1);records.push(event('user/message',6,{id:'00000000-0000-4000-8000-000000000008',source:{kind:'user',rpcId:RID}}));
  const child=fixture('cancel',{running:true,records,command:{owned_request_ids:[parent,RID]}});await child.worker.poll();assert.equal(child.reports[0].result.ok,true);assert.equal(child.calls.filter(x=>x[0]==='cancel').length,1);child.worker.close();
  const original=fixture('cancel',{running:true,records,command:{request_id:parent,owned_request_ids:[parent,RID]}});await original.worker.poll();assert.equal(original.calls.some(x=>x[0]==='cancel'),false);assert.equal(original.reports[0].result.error_code,'IDENTITY_MISMATCH');original.worker.close();
+});
+
+const MID='00000000-0000-4000-8000-000000000003';
+const simpleQuestions=[{id:'format',question:'Which format?',options:[{label:'Plain'},{label:'JSON'}]}];
+const questionRecords=(questions=simpleQuestions,finished=false)=>[...taskEvents().slice(0,2),event('tool/call',3,{turn:4,step:1,callId:'call-question',name:'ask_user_question',arguments:JSON.stringify({questions})}),...finished?[event('tool/result',4,{turn:4,step:1,message:{toolCallId:'call-question',content:[{type:'text',text:'{"pending":true}'}]}}),event('turn/end',5,{turn:4,reason:{kind:'completed'}})]:[]];
+function pendingQuestion(answers,{callId='call-question',state='open',questions=simpleQuestions,key='question-key'}={}){let answered=false;return{kind:'question',key,sessionId:SID,callId,questions,getSnapshot:()=>({state,channel:answered?'none':state==='open'?'waterfall':'rpc',closed:false}),async answer(value){assert.equal(this.sessionId,SID);if(answered)throw Error('Already settled');answered=true;answers.push(value);}};}
+function pendingApproval(answers,{key='approval-key',callId='call-operation'}={}){return{kind:'approval',key,sessionId:SID,callId,toolName:'synthetic_write',reason:'Write requested synthetic result',answerable:true,async answer(value){assert.equal(this.sessionId,SID);answers.push(value);this.answerable=false;}};}
+const approvalRecords=()=>[...taskEvents().slice(0,2),event('tool/call',3,{turn:4,step:1,callId:'call-operation',name:'synthetic_write',arguments:'{"path":"synthetic.txt"}'}),event('approval/asked',4,{id:'audit-approval',callId:'call-operation',toolName:'synthetic_write'})];
+async function observedInteraction(f){await f.worker.poll();const r=f.reports.at(-1).result;assert.equal(r.ok,true);assert.equal(r.interactions?.length,1);return r.interactions[0];}
+
+test('native questions expose exact owned call identity and structured answers use the original official carrier',async()=>{
+ const answers=[],f=fixture('inspect',{running:true,records:questionRecords(),pendingInteraction:pendingQuestion(answers)});
+ const interaction=await observedInteraction(f);assert.equal(interaction.kind,'question');assert.equal(interaction.call_id,'call-question');assert.equal(interaction.turn,4);assert.equal(interaction.message_id,MID);assert.equal(interaction.questions[0].question,'Which format?');
+ f.offer('answer_question',{interaction,interaction_request_id:'answer-one',answers:[{id:'format',selected:['JSON']}]});await f.worker.poll();
+ assert.deepEqual(answers,[{answers:[{id:'format',selected:['JSON']}]}]);assert.deepEqual(f.reports.at(-1).result.interaction_result,{interaction_id:interaction.interaction_id,request_id:'answer-one',outcome:'applied'});assert.equal(f.calls.some(c=>c[0]==='prompt'),false);f.worker.close();
+});
+
+test('native single-operation approval and denial preserve the public carrier receiver and never change policy',async()=>{
+ for(const [decision,outcome]of [['allow_once','allowed-once'],['deny','rejected']]){
+  const answers=[],f=fixture('inspect',{running:true,records:approvalRecords(),pendingInteraction:pendingApproval(answers)}),interaction=await observedInteraction(f);
+  f.offer('decide_approval',{interaction,interaction_request_id:'approval-once',decision});await f.worker.poll();assert.deepEqual(answers,[outcome]);assert.equal(f.reports.at(-1).result.interaction_result.outcome,'applied');assert.equal(f.calls.some(c=>c[0]==='prompt'),false);f.worker.close();
+ }
+});
+
+test('a replacement official pending carrier cannot reuse an observed decision even when key and call id match',async()=>{
+ const answers=[],f=fixture('inspect',{running:true,records:questionRecords(),pendingInteraction:pendingQuestion(answers)}),interaction=await observedInteraction(f);
+ f.state.pendingInteraction=pendingQuestion(answers);f.offer('answer_question',{interaction,interaction_request_id:'stale-one',answers:[{id:'format',selected:['JSON']}]});await f.worker.poll();assert.deepEqual(f.reports.at(-1).result,{ok:false,error_code:'INTERACTION_STALE'});assert.deepEqual(answers,[]);f.worker.close();
+});
+
+test('legacy questions without a carrier call id bind only a unique owned unanswered call with identical questions',async()=>{
+ const answers=[],pending=pendingQuestion(answers);delete pending.callId;
+ const f=fixture('inspect',{running:true,records:questionRecords(),pendingInteraction:pending}),interaction=await observedInteraction(f);assert.equal(interaction.call_id,'call-question');f.offer('answer_question',{interaction,interaction_request_id:'legacy-one',answers:[{id:'format',selected:[],custom:'CSV'}]});await f.worker.poll();assert.deepEqual(answers,[{answers:[{id:'format',selected:[],custom:'CSV'}]}]);f.worker.close();
+ const records=questionRecords();records.push(event('tool/call',4,{turn:4,step:1,callId:'another-call',name:'ask_user_question',arguments:JSON.stringify({questions:simpleQuestions})}));const g=fixture('inspect',{running:true,records,pendingInteraction:pendingQuestion([],{callId:undefined})});delete g.state.pendingInteraction.callId;await g.worker.poll();assert.deepEqual(g.reports.at(-1).result.interactions,[]);g.worker.close();
+});
+
+test('answers reject fabricated option labels, duplicate ids, single-select multi-answers and persistent grants',async()=>{
+ for(const answers of [[{id:'format',selected:['not offered']}],[{id:'format',selected:['Plain','JSON']}],[{id:'format',selected:['Plain']},{id:'format',selected:['JSON']}],[{id:'other',selected:['Plain']}]]){
+  const received=[],f=fixture('inspect',{running:true,records:questionRecords(),pendingInteraction:pendingQuestion(received)}),interaction=await observedInteraction(f);f.offer('answer_question',{interaction,interaction_request_id:'invalid-answer',answers});await f.worker.poll();assert.equal(f.reports.at(-1).result.error_code,'INTERACTION_INVALID');assert.deepEqual(received,[]);f.worker.close();
+ }
+ const q=[{id:'permission',question:'Allow access?',options:[{label:'Once'},{label:'Deny'},{label:'Always'}],intent:{kind:'approval',approve:'Once',reject:'Deny',always:'Always'}}];
+ const received=[],f=fixture('inspect',{running:true,records:questionRecords(q),pendingInteraction:pendingQuestion(received,{questions:q})}),interaction=await observedInteraction(f);assert.equal(interaction.questions[0].approval_only,true);assert.deepEqual(interaction.questions[0].options.map(o=>o.label),['Once','Deny']);
+ f.offer('answer_question',{interaction,interaction_request_id:'never-persistent',answers:[{id:'permission',selected:['Always']}]});await f.worker.poll();assert.equal(f.reports.at(-1).result.error_code,'INTERACTION_INVALID');assert.deepEqual(received,[]);f.worker.close();
+});
+
+test('manual takeover and unowned calls are never exposed as actionable interactions',async()=>{
+ for(const records of [questionRecords().map(r=>r.event.type==='user/message'?event('user/message',2,{...r.event.data,source:{kind:'user',rpcId:'foreign'}}):r),[...questionRecords(),event('user/message',4,{id:'00000000-0000-4000-8000-000000000008',source:{kind:'user',rpcId:'foreign'}})]]){
+  const f=fixture('inspect',{running:true,records,pendingInteraction:pendingQuestion([])});await f.worker.poll();assert.deepEqual(f.reports.at(-1).result.interactions,[]);f.worker.close();
+ }
+});
+
+test('continued questions remain actionable after the original turn ends and only applied call ids admit official reply turns',async()=>{
+ const answers=[],f=fixture('inspect',{records:questionRecords(simpleQuestions,true),questions:[{callId:'call-question',state:'continued',questions:simpleQuestions}],pendingInteraction:pendingQuestion(answers,{state:'continued'})}),interaction=await observedInteraction(f);assert.equal(interaction.state,'continued');
+ f.offer('answer_question',{interaction,interaction_request_id:'late-answer',answers:[{id:'format',selected:['JSON']}]});await f.worker.poll();assert.equal(f.reports.at(-1).result.interaction_result.outcome,'applied');
+ f.state.pendingInteraction=undefined;f.state.questions=[];f.state.records.push(event('assistant/message',8,{turn:5,message:{content:[{type:'text',text:'Completed with JSON'}]}}),event('turn/end',9,{turn:5,reason:{kind:'completed'}}));
+ f.offer('inspect',{continuation_call_ids:['call-question']});await f.worker.poll();const r=f.reports.at(-1).result;assert.equal(r.events.find(e=>e.turn===5&&e.type==='user/message').source_call_id,'call-question');assert.equal(r.events.at(-1).turn,5);
+ f.offer('inspect',{continuation_call_ids:[]});await f.worker.poll();assert.equal(f.reports.at(-1).result.events.some(e=>e.turn===5),false);f.worker.close();
+});
+
+test('an answer report retry never invokes the official carrier twice',async()=>{
+ const answers=[],f=fixture('inspect',{running:true,records:questionRecords(),pendingInteraction:pendingQuestion(answers)}),interaction=await observedInteraction(f);f.offer('answer_question',{interaction,interaction_request_id:'answer-retry',answers:[{id:'format',selected:['JSON']}]});f.failNextReport();await f.worker.poll();await f.worker.poll();assert.equal(answers.length,1);assert.deepEqual(f.reports.at(-1),f.reports.at(-2));f.worker.close();
+});
+
+test('a locally settled answer without Host acknowledgement is unknown and is never automatically replayed',async()=>{
+ const answers=[],f=fixture('inspect',{running:true,records:questionRecords(),pendingInteraction:pendingQuestion(answers),noAnswerAcknowledgement:true,timeoutMs:20}),interaction=await observedInteraction(f);f.offer('answer_question',{interaction,interaction_request_id:'unknown-answer',answers:[{id:'format',selected:['JSON']}]});await f.worker.poll();assert.deepEqual(f.reports.at(-1).result,{ok:false,error_code:'INTERACTION_UNKNOWN'});await f.worker.poll();assert.equal(answers.length,1);f.worker.close();
+});
+
+test('structured multi-select answers preserve offered labels and optional free text',async()=>{
+ const q=[{id:'outputs',question:'Which outputs?',multiSelect:true,options:[{label:'JSON'},{label:'CSV'}]}],answers=[],f=fixture('inspect',{running:true,records:questionRecords(q),pendingInteraction:pendingQuestion(answers,{questions:q})}),interaction=await observedInteraction(f);const value=[{id:'outputs',selected:['CSV','JSON'],custom:'Also describe the columns'}];f.offer('answer_question',{interaction,interaction_request_id:'multi-answer',answers:value});await f.worker.poll();assert.deepEqual(answers,[{answers:value}]);assert.equal(f.reports.at(-1).result.interaction_result.outcome,'applied');f.worker.close();
+});
+
+test('the same question carrier can naturally become continued between observation and answer',async()=>{
+ const answers=[],carrier=pendingQuestion(answers),f=fixture('inspect',{running:true,records:questionRecords(),pendingInteraction:carrier}),interaction=await observedInteraction(f);
+ carrier.getSnapshot=()=>({state:'continued',channel:'rpc',closed:false});f.state.records=questionRecords(simpleQuestions,true);f.state.questions=[{callId:'call-question',state:'continued',questions:simpleQuestions}];f.state.running=false;
+ f.offer('answer_question',{interaction,interaction_request_id:'cross-timeout',answers:[{id:'format',selected:['JSON']}]});await f.worker.poll();const result=f.reports.at(-1).result;assert.equal(result.interaction_result?.outcome,'applied');assert.ok(result.events.some(e=>e.turn===5&&e.source_call_id==='call-question'));assert.equal(result.running,true);f.worker.close();
+});
+
+test('only exact owned question calls contribute read-only waiting state',async()=>{
+ const owned={callId:'call-question',state:'continued',questions:simpleQuestions},foreign={callId:'foreign-call',state:'continued',questions:[{id:'foreign',question:'Foreign contents'}]};
+ const f=fixture('inspect',{records:questionRecords(simpleQuestions,true),questions:[owned,foreign]});await f.worker.poll();const result=f.reports.at(-1).result;assert.equal(result.user_question_count,1);assert.deepEqual(result.questions.map(q=>q.id),['format']);assert.deepEqual(result.interactions,[]);f.worker.close();
+});
+
+function continuedRecords(){return[...questionRecords(simpleQuestions,true),event('turn/start',6,{turn:5}),event('user/message',7,{id:'00000000-0000-4000-8000-000000000009',source:{kind:'user-question-reply',callId:'call-question',outcome:'answered'}})];}
+for(const mode of ['queue','steer'])test(`active ${mode} continues the exact applied late-reply parent turn`,async()=>{
+ const f=fixture('prompt',{running:true,records:continuedRecords(),command:{task:'Continue after the answer',mode,parent_request_id:RID,request_id:'00000000-0000-4000-8000-000000000006',owned_request_ids:[RID],continuation_call_ids:['call-question']}});await f.worker.poll();assert.equal(f.reports.at(-1).result.ok,true);assert.equal(f.reports.at(-1).result.parent_turn,5);assert.equal(f.calls.find(c=>c[0]==='prompt')[1].mode,mode);f.worker.close();
+});
+
+test('cancellation can stop its verified late-reply turn but cannot stop a manual replacement',async()=>{
+ const f=fixture('cancel',{running:true,records:continuedRecords(),command:{continuation_call_ids:['call-question']}});await f.worker.poll();assert.equal(f.reports.at(-1).result.ok,true);assert.equal(f.calls.filter(c=>c[0]==='cancel').length,1);f.worker.close();
+ const records=continuedRecords();records.push(event('user/message',8,{id:'00000000-0000-4000-8000-000000000006',source:{kind:'user',rpcId:'foreign'}}));const g=fixture('cancel',{running:true,records,command:{continuation_call_ids:['call-question']}});await g.worker.poll();assert.equal(g.reports.at(-1).result.error_code,'IDENTITY_MISMATCH');assert.equal(g.calls.some(c=>c[0]==='cancel'),false);g.worker.close();
+});
+
+test('every error after entering the official answer method is unknown even if that method throws a pre-effect-looking code',async()=>{
+ const received=[],pending=pendingQuestion(received),f=fixture('inspect',{running:true,records:questionRecords(),pendingInteraction:pending}),interaction=await observedInteraction(f);pending.answer=()=>{throw Object.assign(Error('synthetic method error'),{safeCode:'INTERACTION_STALE'});};f.offer('answer_question',{interaction,interaction_request_id:'throw-after-entry',answers:[{id:'format',selected:['JSON']}]});await f.worker.poll();assert.deepEqual(f.reports.at(-1).result,{ok:false,error_code:'INTERACTION_UNKNOWN'});f.worker.close();
+});
+
+test('same-turn late replies bind following questions to the actual reply and remain controllable',async()=>{
+ const reply='00000000-0000-4000-8000-000000000009',records=questionRecords();records.push(event('tool/result',4,{turn:4,message:{toolCallId:'call-question'}}),event('user/message',5,{id:reply,source:{kind:'user-question-reply',callId:'call-question',outcome:'answered'}}),event('tool/call',6,{turn:4,step:2,callId:'call-second',name:'ask_user_question',arguments:JSON.stringify({questions:simpleQuestions})}));
+ const f=fixture('inspect',{running:true,records,pendingInteraction:pendingQuestion([],{callId:'call-second'}),command:{continuation_call_ids:['call-question']}}),interaction=await observedInteraction(f);assert.equal(interaction.message_id,reply);assert.equal(interaction.turn,4);
+ f.state.pendingInteraction=undefined;f.offer('prompt',{task:'Continue the same turn',mode:'steer',parent_request_id:RID,request_id:'00000000-0000-4000-8000-000000000006',owned_request_ids:[RID],continuation_call_ids:['call-question']});await f.worker.poll();assert.equal(f.reports.at(-1).result.parent_turn,4);assert.equal(f.reports.at(-1).result.ok,true);f.worker.close();
+});
+
+test('a completed manual replacement never restores remote permission to an older continued question',async()=>{
+ const received=[],f=fixture('inspect',{records:questionRecords(simpleQuestions,true),questions:[{callId:'call-question',state:'continued',questions:simpleQuestions}],pendingInteraction:pendingQuestion(received,{state:'continued'})}),interaction=await observedInteraction(f);
+ f.state.records.push(event('turn/start',6,{turn:5}),event('user/message',7,{id:'00000000-0000-4000-8000-000000000009',source:{kind:'user',rpcId:'foreign'}}),event('turn/end',8,{turn:5,reason:{kind:'completed'}}));f.offer('answer_question',{interaction,interaction_request_id:'manual-finished',answers:[{id:'format',selected:['JSON']}]});await f.worker.poll();assert.deepEqual(f.reports.at(-1).result,{ok:false,error_code:'INTERACTION_STALE'});assert.deepEqual(received,[]);f.worker.close();
+});
+
+test('a completed foreign turn without a recognized user source also cannot restore an old continued question',async()=>{
+ const f=fixture('inspect',{records:[...questionRecords(simpleQuestions,true),event('turn/start',6,{turn:5}),event('user/message',7,{id:'00000000-0000-4000-8000-000000000009',source:{kind:'other-plugin'}}),event('turn/end',8,{turn:5,reason:{kind:'completed'}})],questions:[{callId:'call-question',state:'continued',questions:simpleQuestions}],pendingInteraction:pendingQuestion([],{state:'continued'})});await f.worker.poll();assert.deepEqual(f.reports.at(-1).result.interactions,[]);f.worker.close();
 });

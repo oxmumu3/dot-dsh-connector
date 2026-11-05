@@ -11,6 +11,12 @@ const overview={management_protocol:{version:2,features:{task_filters:true,archi
 const job={job_id:'j1',task:'检查交付文件',workspace_id:'w1',workspace_name:'演示项目',session_id:'s1',session_name:'文件检查',status:'running',last_activity_at:'2026-10-22T12:00:00Z',request_id:'req1'};
 async function mount(t,adapter,options){let tree;await act(async()=>{tree=create(React.createElement(createManagementUI(React,adapter)),options);});t.after(async()=>{await act(async()=>tree.unmount());});return tree;}
 const pages=items=>({items,total:items.length,next_offset:null});
+test('a remotely answerable task explains the next action in Dot and preserves the original Harness route',async t=>{
+ const selected={...job,stage:'waiting_for_answer',user_question_count:1,interactions:[{interaction_id:'question-one',kind:'question',call_id:'call-one',state:'open',turn:1,message_id:'00000000-0000-4000-8000-000000000003'}],questions:[{id:'format',question:'选择输出格式',state:'open'}]};
+ const tree=await mount(t,{canOpenSession:()=>true,openSession:async()=>{},async call(tool){if(tool==='manager_overview')return overview;if(tool==='manager_jobs')return pages([selected]);if(tool==='manager_job')return{job:selected};throw Error(tool);}});
+ await act(async()=>button(tree,'任务').props.onClick());await act(async()=>button(tree,job.task).props.onClick());
+ assert.match(text(tree.toJSON()),/在 Dot.*回答/);assert.ok(button(tree,'打开 Harness 会话'));
+});
 test('first connection checks an actual workspace before account setup and cancellation does not start it',async t=>{
  let ready=false;const calls=[],setup={mode:'managed',phase:'setup_required',services:{},actions:{},connection_setup:{phase:'idle',actions:{start:true},verification:{}}};
  const tree=await mount(t,{supports:()=>true,ensureWorkspace:async()=>{calls.push('workspace');return ready;},async call(tool){calls.push(tool);if(tool==='manager_overview')throw{code:'dot-management/unavailable'};if(tool==='manager_setup_status')return setup;if(tool==='manager_setup_connect_start')return{phase:'preparing',actions:{},verification:{}};throw Error(tool);}});

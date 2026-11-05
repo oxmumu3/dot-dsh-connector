@@ -30,6 +30,7 @@ export async function validateCompatibility({root=defaultRoot,official,desktop}=
  const range=manifest.verifiedSdks.join(' || ');
  assert.equal(pkg.engines.dsh,range);assert.equal(native.engines.dsh,range);assert.equal(pkg.peerDependencies['@deepseek-ai/dsh-llm'],range);
  assert.equal(native.peerDependencies['@deepseek-ai/dsh-typert-protocol'],range);
+ for(const [name,value]of Object.entries(native.peerDependencies))if(name.startsWith('@deepseek-ai/dsh-'))assert.equal(value,range,'Unverified SDK peer '+name);
  assert.equal(native.peerDependencies['@deepseek-ai/cordis'],'~4.0.5 || ~4.1.0');
  assert.equal(native.dependencies['@deepseek-ai/dsh-typert-protocol'],undefined,'Host must supply the matching protocol peer');
  for(const value of [lock,shrink]){assert.equal(value.version,pkg.version);assert.equal(value.packages[''].version,pkg.version);assert.equal(value.packages[''].engines.dsh,range);assert.equal(value.packages[''].peerDependencies['@deepseek-ai/dsh-llm'],range);}

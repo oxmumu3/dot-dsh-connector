@@ -217,7 +217,7 @@ export function createManagementUI(React,adapter){
    const job=detail.value,canCancel=['accepted','starting','running','cancel_requested'].includes(job.status),canManageNative=job.execution_kind==='native'||(nativeTasks&&!job.project_id),canFollow=canManageNative&&(terminal(job)||(job.status==='running'&&(!job.stage||job.stage==='running'))),canOpen=typeof adapter.openSession==='function'&&(adapter.canOpenSession?.()??true),disabled=busy||detail.cached;
    detailBody=h('section',{className:'dm-detail','aria-label':'任务详情'},h('div',{className:'dm-detail-head'},h('h2',{ref:detailHeading,tabIndex:-1},'任务详情'),h('button',{className:'dm-button',onClick:()=>closeDetail(true)},'关闭详情')),h('h3',null,titleOf(job)),detail.cached&&h('p',{className:'dm-notice',role:'status'},'这是上次保存的任务状态，当前未能刷新。刷新成功后才可修改或取消任务。'),failureNotice('detail','任务详情'),stamp('detail','所选任务'),
     h('dl',{className:'dm-facts'},...info('状态',jobState(job)),...info('项目',projectOf(job)),...info('会话',job.session_name||job.session_id),...info('等待审批',job.pending_approvals??0),...info('等待回答',job.user_question_count??0),...info('最近活动',time(job.last_activity_at??job.updated_at??job.created_at)),...info('创建时间',time(job.created_at)),...info('完成时间',time(job.finished_at))),
-    (job.pending_approvals>0||job.user_question_count>0)&&h('p',{className:'dm-notice'},'需要你处理：打开 Harness 会话查看审批并回答问题。'),
+    (job.pending_approvals>0||job.user_question_count>0||job.interactions?.length>0)&&h('p',{className:'dm-notice'},job.interactions?.length>0?'需要你处理：可在 Dot 回答本次追问，或逐次批准、拒绝当前操作；也可以打开 Harness 会话处理。':'需要你处理：打开 Harness 会话查看审批并回答问题。'),
     (job.questions??[]).filter(q=>q.state==='open').map(q=>h('section',{key:`${q.call_id??''}:${q.id}`},h('h3',null,q.header||'待回答的问题'),h('p',null,q.question),q.detail&&h('p',{className:'dm-muted'},q.detail),h('ul',null,(q.options??[]).map((option,index)=>h('li',{key:index},option.label,option.description?`：${option.description}`:''))))),job.questions_truncated&&h('p',{className:'dm-note'},'这里仅显示部分问题；完整内容请打开 Harness 会话。'),
     h('div',{className:'dm-actions'},h('button',{className:'dm-button',disabled:!canOpen||!job.session_id,onClick:()=>void openNative(job)},'打开 Harness 会话'),!canOpen&&h('span',{className:'dm-note'},'原生导航尚未就绪。')),
     job.task&&h(React.Fragment,null,h('h3',null,'任务要求'),h('pre',{className:'dm-pre'},job.task)),h('h3',null,'返回结果'),h('pre',{className:'dm-pre'},job.result||'暂无已确认完成的结果。'),job.result_truncated&&h('p',{className:'dm-note'},'结果超过上限，当前显示截取内容。'),job.reason&&h('p',{className:'dm-note'},`终止原因：${job.reason}`),
@@ -285,10 +285,10 @@ export function managementClientFactory(require,remoteFactory=createManagementRe
    child.inject(['uiWorkspace'],scope=>{navigation.current=scope.uiWorkspace;scope.effect?.(()=>()=>{if(navigation.current===scope.uiWorkspace)navigation.current=null;});});
    child.inject(['workspaces'],scope=>{registry.current=scope.workspaces;scope.effect?.(()=>()=>{if(registry.current===scope.workspaces)registry.current=null;});});
    // A renderer-scoped worker continues when the management page is hidden.
-   if(workerFactory&&globalThis.location?.protocol==='dsh-app:'&&globalThis.location?.hostname==='app')child.inject(['remote.workspace','remote.session'],scope=>{
+   if(workerFactory&&globalThis.location?.protocol==='dsh-app:'&&globalThis.location?.hostname==='app')child.inject(['remote.workspace','remote.session','uiSession'],scope=>{
     const legacyCodes=new Set(['gateway/method-unavailable','gateway/definition-unavailable','dot-management/invalid-request']);
     const poll=async()=>{let result;try{result=await child.remote.dotDshManagement.workerPoll({});}catch(error){if(legacyCodes.has(error?.code))return child.remote.dotDshManagement.overview({});throw error;}return result?.ok===false&&legacyCodes.has(result.error?.code)?child.remote.dotDshManagement.overview({}):result;};
-    const worker=workerFactory({remote:scope.remote,overview:poll});
+    const worker=workerFactory({remote:scope.remote,overview:poll,uiSession:scope.uiSession});
     scope.effect(()=>{worker.start();return()=>worker.close();});
    });
    child.slots.inject('main',()=>child.slots.register({name:'main',key:'dot-management'},Page));

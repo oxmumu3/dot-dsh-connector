@@ -28,12 +28,16 @@ const nativeDefinitions = [
   ['harness_archive_task','Archive or unarchive a finished connector-owned task in the connector list. Does not delete its session or request identity. Only succeeded, failed or cancelled tasks can be archived; archived defaults to true.',z.strictObject({job_id:id(),archived:z.boolean().optional()}),true],
   ['harness_followup_task','Send an explicitly requested follow-up in the same connector-owned Harness session using normal tools and approvals. Default after_complete requires a completed task; queue adds a next-turn instruction to an active task, and steer adds an instruction to its running turn. Returns a distinct attempt/job with its own message identity. May edit files and run commands; reuse request_id.',z.strictObject({job_id:id(),task:z.string().trim().min(1).max(8000),request_id:id(),mode:z.enum(['after_complete','queue','steer']).optional()}),true],
   ['harness_cancel_task','Request cancellation of a connector-owned native Harness task only. Does not undo completed file changes or commands.',z.strictObject({job_id:id()}),true],
+  ['harness_answer_question','Answer one exact pending Harness question with the user\'s specific structured response. First show the current question and options returned by harness_get_task. Never guess the user\'s answer or substitute a new task prompt. May resume file edits and commands; reuse request_id on retry and query the operation receipt before claiming application.',z.strictObject({job_id:id(),interaction_id:nonControl(512),request_id:id(),answers:z.array(z.strictObject({id:nonControl(256),selected:z.array(z.string().min(1).max(300)).max(12),custom:z.string().trim().min(1).max(4000).optional()})).min(1).max(20)}),true],
+  ['harness_decide_approval','Allow once or deny one exact pending Harness operation. First show the user the current request, tool and reason from harness_get_task and obtain their explicit decision for this specific request. A general task instruction is not approval. Never auto-approve, grant persistent permission, or infer a decision. Reuse request_id on retry; acceptance is not proof the decision was applied.',z.strictObject({job_id:id(),interaction_id:nonControl(512),request_id:id(),decision:z.enum(['allow_once','deny'])}),true],
 ];
 
 /** Tool registration is metadata only. No backend call occurs until tools/call. */
 export function createMcpServer({ call, harnessRead = false, harnessExecution = false,fixtureTasks=true } = {}) {
   if (typeof call !== 'function' || typeof harnessRead !== 'boolean' || typeof harnessExecution !== 'boolean'||typeof fixtureTasks!=='boolean'||!fixtureTasks&&!harnessRead&&!harnessExecution) throw new Error('Invalid connector configuration.');
-  const server = new McpServer({ name: 'dot-dsh-connector', version: '0.4.0-preview.1' }, { maxToolInputElements: 32 });
+  // Twenty bounded question answers can contain up to twelve selected labels each.
+  // All registered schemas remain strict; transport byte limits remain unchanged.
+  const server = new McpServer({ name: 'dot-dsh-connector', version: '0.6.0-preview.25' }, { maxToolInputElements: 512 });
   const selected=[...fixtureTasks?definitions:[],...harnessRead?harnessDefinitions:[],...harnessExecution?nativeDefinitions:[]];
   for (const [name, description, inputSchema, mutating] of selected) {
     server.registerTool(name, {
@@ -41,9 +45,9 @@ export function createMcpServer({ call, harnessRead = false, harnessExecution = 
       inputSchema,
       annotations: {
         readOnlyHint: !mutating,
-        destructiveHint: name === 'cancel_task' || name === 'harness_cancel_task',
+        destructiveHint: name === 'cancel_task' || name === 'harness_cancel_task' || name === 'harness_answer_question' || name === 'harness_decide_approval',
         idempotentHint: true,
-        openWorldHint: name === 'harness_start_task' || name === 'harness_followup_task',
+        openWorldHint: name === 'harness_start_task' || name === 'harness_followup_task' || name === 'harness_answer_question' || name === 'harness_decide_approval',
       },
     }, async (args) => {
       try {

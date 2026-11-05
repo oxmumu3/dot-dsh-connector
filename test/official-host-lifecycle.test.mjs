@@ -49,3 +49,14 @@ test('installed ABI checks resolve from the installed plugin and reject a nested
   await assert.rejects(host.inspectInstalledAbi(root,{sdk:'0.2.2-rc.1',cordisVersion:'4.1.0'}),/protocol ABI/);
  }finally{await rm(root,{recursive:true,force:true});}
 });
+test('installed native UI peers must match the Host SDK rather than a nested older UI package',async t=>{
+ const root=await mkdtemp(join(tmpdir(),'dsh-installed-ui-abi-'));t.after(()=>rm(root,{recursive:true,force:true}));
+ const ui='@deepseek-ai/dsh-client-ui-session';
+ await writeFile(join(root,'package.json'),JSON.stringify({name:'synthetic-installed-plugin',version:'1.0.0',peerDependencies:{[ui]:'0.2.2-rc.1'}}));
+ for(const [name,version]of [['@deepseek-ai/cordis','4.1.0'],['@deepseek-ai/dsh-typert-protocol','0.2.2-rc.1'],[ui,'0.2.1-rc.5']]){
+  const path=join(root,'node_modules',name);await mkdir(path,{recursive:true});await writeFile(join(path,'package.json'),JSON.stringify({name,version,main:'index.js'}));await writeFile(join(path,'index.js'),'module.exports={};');
+ }
+ await assert.rejects(host.inspectInstalledAbi(root,{sdk:'0.2.2-rc.1',cordisVersion:'4.1.0'}),/dsh-client-ui-session/);
+ await writeFile(join(root,'node_modules',ui,'package.json'),JSON.stringify({name:ui,version:'0.2.2-rc.1',main:'index.js'}));
+ const abi=await host.inspectInstalledAbi(root,{sdk:'0.2.2-rc.1',cordisVersion:'4.1.0'});assert.equal(abi.peers[ui].version,'0.2.2-rc.1');
+});

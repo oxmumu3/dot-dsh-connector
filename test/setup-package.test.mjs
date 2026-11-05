@@ -7,7 +7,7 @@ const exec=promisify(execFile),root=fileURLToPath(new URL('..',import.meta.url))
 async function temp(t){const base=await realpath(await mkdtemp(join(tmpdir(),'dot-package-')));t.after(()=>rm(base,{recursive:true,force:true}));return base;}
 test('runtime preflight reports unsupported platform, SDK, Python and absent Desktop profile separately',async()=>{
  const checks=await runtimePreflight({dshHome:'/nonexistent-synthetic-dsh',platform:'linux',nodeVersion:'22.13.0',checkSdk:async()=> '0.1.0',checkPython:async()=>{throw Error('private failure');}});
- assert.deepEqual(checks.map(c=>[c.id,c.ok]),[['platform',false],['node',false],['sdk',false],['python',false],['profile',false]]);assert.doesNotMatch(JSON.stringify(checks),/private failure/);
+ assert.deepEqual(checks.map(c=>[c.id,c.ok]).sort(([a],[b])=>a.localeCompare(b)),[['node',false],['platform',false],['profile',false],['python',false],['sdk',false]]);assert.doesNotMatch(JSON.stringify(checks),/private failure/);
 });
 test('one native archive contains runtime code, preserves package identity and starts actual owned services from a temporary extraction',async t=>{
  const base=await temp(t);await buildManagementPackage();

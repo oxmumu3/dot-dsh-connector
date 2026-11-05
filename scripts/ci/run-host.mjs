@@ -20,7 +20,9 @@ export async function inspectInstalledAbi(packageRoot,{sdk,cordisVersion}){
  }
  const protocol=await metadata('@deepseek-ai/dsh-typert-protocol'),cordis=await metadata('@deepseek-ai/cordis');
  assert.equal(protocol.version,sdk,'Installed protocol ABI differs from the exact Host SDK');assert.equal(cordis.version,cordisVersion,'Installed Cordis ABI differs from the exact Host carrier');
- return{protocol,cordis};
+ const manifest=JSON.parse(await readFile(join(packageRoot,'package.json'),'utf8')),peers={};
+ for(const name of Object.keys(manifest.peerDependencies??{}).filter(name=>name.startsWith('@deepseek-ai/dsh-'))){peers[name]=await metadata(name);assert.equal(peers[name].version,sdk,'Installed SDK peer differs from the exact Host: '+name);}
+ return{protocol,cordis,peers};
 }
 export async function runHost({root,carrier,sdk,out,cleanEnvironment,pnpm,offline=false,publicStore,publicCache}){
  assert.equal(process.platform,'darwin');

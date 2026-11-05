@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "package": "@oxmumu3/dot-dsh-management",
-  "version": "0.6.0-preview.24",
+  "version": "0.6.0-preview.25",
   "officialPackage": "@deepseek-ai/dsh",
   "officialRepository": "deepseek-ai/deepseek-harness",
   "verifiedSdks": [
@@ -12,10 +12,10 @@
     "0.2.2-rc.1"
   ],
   "latestOfficial": "0.2.2-rc.1",
-  "verifiedAt": "2026-11-04",
+  "verifiedAt": "2026-11-05",
   "node": ">=22.15",
   "gates": [
-    "13-file compatibility suite with explicit public SDK carrier and real persisted codec reads",
+    "18-file compatibility suite including actual official Host/Client pending-interaction turns, broker, worker, MCP and persisted codecs",
     "official Host fresh local tarball install and active Remote",
     "official registry freshness check"
   ],
@@ -31,6 +31,6 @@
     "channel": "RC",
     "feed": "https://download.deepseek.com/dsh-desk/feeds/mac-arm64/nightly-mac.yml",
     "release": "https://github.com/deepseek-ai/deepseek-harness/releases/tag/dsh-v0.2.2-rc.1",
-    "stagingPercentage": 30
+    "stagingPercentage": 35
   }
 }

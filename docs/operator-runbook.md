@@ -54,11 +54,11 @@ DOT_DSH_FIXTURE_TASKS=disabled
 DOT_DSH_TOKEN=<安全本地注入，不填写实际值>
 ```
 
-本机 `/rpc` 是内部桥接协议，不是直接填进 ChatGPT 的 HTTP MCP 地址。将私有 Tunnel 关联到目标 workspace，在官方插件界面完成所需授权并核对工具目录。旧连接可能仍保留旧工具元数据；按平台支持的方式更新或重新建立本人私有连接，确认 12 个工具后再派活。端口只监听 loopback，不开放公网端口，不改系统代理。
+本机 `/rpc` 是内部桥接协议，不是直接填进 ChatGPT 的 HTTP MCP 地址。将私有 Tunnel 关联到目标 workspace，在官方插件界面完成所需授权并核对工具目录。旧连接可能仍保留旧工具元数据；按平台支持的方式更新或重新建立本人私有连接，确认 14 个工具，且包含 `harness_answer_question` 与 `harness_decide_approval` 后再验收新版远程交互。端口只监听 loopback，不开放公网端口，不改系统代理。
 
 ## 4. 真实发现与验收
 
-推荐配置应发现六个读取和六个原生任务工具，共 12 个。工具发现不能产生任务副作用；不得仍调用旧 `start_task` 来证明新的 `harness_start_task` 可用。
+推荐配置应发现六个读取和八个原生任务工具，共 14 个。工具发现不能产生任务副作用；不得仍调用旧 `start_task` 来证明新的 `harness_start_task` 可用。
 
 `harness_status` 返回 `existing_harness_read_only` 是读取服务状态，并非整个连接的总权限声明。原生任务能力须另核对任务工具的发现、worker 状态与真实任务结果。
 
