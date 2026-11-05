@@ -2,7 +2,7 @@
 
 Dot 给 Harness 派任务后，可以把该任务的追问和操作请求带回对话。你直接回答问题，或明确选择“本次允许／拒绝”，Harness 继续处理同一个任务。无需自己寻找或复制会话、问题、工具调用编号。
 
-此能力随 preview.25 开发候选提供。公开发布、实际 npm 安装和真实 Dot 验收分别记录在 [verification.md](verification.md)，不能用源码或本机 SDK 测试代替。
+preview.25 已公开发布并通过官方 npm 安装验收。本轮真实 Dot 派发并读取了 Harness 的问题；答复通过正式安装的本机 MCP 提交，原任务已完成。旧 Dot 连接仍缓存 12 个工具，两个新工具在云端的发现和调用尚待刷新验收。各层结果见 [verification.md](verification.md)。
 
 ## 使用过程
 

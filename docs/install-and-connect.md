@@ -1,6 +1,6 @@
 # 安装并连接自己的 Dot
 
-当前版本 `0.6.0-preview.24` 已发布到 npm `latest`，兼容官方 Harness Desktop `0.2.2-rc.1`，并保留 `0.2.1-rc.2` / `rc.3` / `rc.4` / `rc.5`。此前的连接、任务与持久会话读取修复继续保留；实测范围见[验收记录](verification.md)。
+当前版本 `0.6.0-preview.25` 已发布到 npm `latest`，兼容官方 Harness Desktop `0.2.2-rc.1`，并保留 `0.2.1-rc.2` / `rc.3` / `rc.4` / `rc.5`。此前的连接、任务与持久会话读取修复继续保留；实测范围见[验收记录](verification.md)。
 
 这个插件让你的 Dot 读取 DeepSeek Harness 项目并派任务。连接使用你自己的账号和电脑，任务使用 Harness 原有的模型、工具和审批设置。
 
@@ -8,9 +8,9 @@
 
 在 Harness 会话中发送：
 
-> 请使用 Harness 的官方插件管理工具，从 npm 安装并启用 @oxmumu3/dot-dsh-management@0.6.0-preview.24，保留已有连接、配置和任务；安装后打开侧栏「Dot 连接」，首次使用按提示登录自己的账号并确认授权。
+> 请使用 Harness 的官方插件管理工具，先查询 npm 上 @oxmumu3/dot-dsh-management 的 latest 标签对应版本，再安装并启用该精确版本，保留已有连接、配置和任务；安装后打开侧栏「Dot 连接」，首次使用按提示登录自己的账号并确认授权。
 
-pnpm 11 默认有 1440 分钟（24 小时）发布冷却期，所以 npm `latest` 已更新时，`@latest` 仍可能选到旧版；本次安装因此固定精确版本。默认非 strict 实测中，pnpm 自动记录的冷却例外仅涉及本包的精确版本，未手工更改策略参数或全局配置。strict 客户端请保留现有策略：默认窗口需等到 **2026-11-05 17:31:48 UTC**；更长窗口按本地配置等待。详见[pnpm 11 发布说明](https://pnpm.io/blog/releases/11.0)与[strict 策略说明](https://pnpm.io/settings/dependency-resolution#minimumreleaseagestrict)。
+pnpm 11 默认有 1440 分钟（24 小时）发布冷却期，所以 npm `latest` 已更新时，`@latest` 仍可能选到旧版；本次安装先读取 `latest` 的实际指向，再固定该精确版本。默认非 strict 实测中，pnpm 自动记录的冷却例外仅涉及本包的精确版本，未手工更改策略参数或全局配置。strict 客户端请保留现有策略：默认窗口需等到 **2026-11-06 13:59:49 UTC**；更长窗口按本地配置等待。详见[pnpm 11 发布说明](https://pnpm.io/blog/releases/11.0)与[strict 策略说明](https://pnpm.io/settings/dependency-resolution#minimumreleaseagestrict)。
 
 如提示安装审批，核对后确认。只安装 `@oxmumu3/dot-dsh-management` 这一个原生插件即可；不需要另装仓库根包、运行终端命令或创建 DeepSeek 模型 API key。
 
@@ -21,7 +21,7 @@ pnpm 11 默认有 1440 分钟（24 小时）发布冷却期，所以 npm `latest
 - **登录自己的账号。** 使用插件打开的 Ego 浏览器登录。没有 Ego 时，先点「安装 Ego 并继续」，完成首次浏览器设置后回到 Harness 继续；不要求导入其他浏览器数据。
 - **选择账号范围。** 核对自己的组织与 ChatGPT 工作区。插件自动填写支持的连接配置。
 - **确认授权。** 在官方页面确认通道、专用连接密钥和个人工具连接。每次完成后回到 Harness 点击「继续连接」。看到「Save your key／保存密钥」时先保留窗口，不要点 Done；插件会自动保存密钥，无需复制或转交。
-- **等待实际验证。** 插件让真实 Dot 读取项目并派发一个验证任务。需要回答或审批时，从提示打开对应 Harness 会话处理。验证完成后，页面显示连接结果。
+- **等待实际验证。** 插件让真实 Dot 读取项目并派发一个验证任务。需要回答或审批时，可在已具备两个新工具的 Dot 对话中处理，也可打开对应 Harness 会话。验证完成后，页面显示连接结果。
 
 如 Harness 还没有项目，按提示选择一个你允许操作的文件夹。只读的 memory、skills、instructions 目录不能作为任务项目。
 
@@ -57,3 +57,5 @@ Harness 必须保持运行；关闭插件页面不影响后台连接。应用退
 版本、实际验证范围和仍未覆盖的环境见[验收记录](verification.md)。详细首次连接机制见[首次连接说明](first-connection.md)；[手动配置参考](new-user-connect.md)仅用于旧部署，不是普通用户的主流程。
 
 维护者：牛村木木山。正式仓库：[oxmumu3/dot-dsh-connector](https://github.com/oxmumu3/dot-dsh-connector)。
+
+若还装着早期未带作用域的 `dot-dsh-management`，升级时先保留并停用旧包，待其服务释放后再启用新版；沿用原数据目录，不同时启用两份。旧包可暂留用于回滚。

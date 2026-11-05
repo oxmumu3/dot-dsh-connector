@@ -1,10 +1,10 @@
 # Dot → Harness 插件
 
-开发候选 `0.6.0-preview.25` 新增在 Dot 回答原生追问和逐次批准／拒绝操作；目前公开 npm `latest` 仍为已发布的 preview.24。候选的五 SDK、安装和真实 Dot 验收完成后才发布。[新能力说明](docs/remote-interactions.md)。
+`0.6.0-preview.25` 已发布到 npm `latest`，新增在 Dot 回答原生追问和逐次批准／拒绝操作的工具。旧连接需实际发现两个新工具才可使用；本轮已验证真实 Harness 问答和本机完整 MCP 链路，旧 Dot 工具目录刷新仍待验收。[新能力说明](docs/remote-interactions.md)。
 
 设计思考与生态复盘：[《DeepSeek Harness 要走向极客玩具还是大众普惠？》](https://mp.weixin.qq.com/s/RIAYNqo8OsUVx2JpR8MPyA)
 
-当前版本 `0.6.0-preview.24` 已发布到 npm `latest`，兼容官方 Harness Desktop `0.2.2-rc.1`，并保留 `0.2.1-rc.2` / `rc.3` / `rc.4` / `rc.5`。此前的连接、任务与持久会话读取修复继续保留；实测范围见[验收记录](docs/verification.md)。
+当前版本 `0.6.0-preview.25` 已发布到 npm `latest`，兼容官方 Harness Desktop `0.2.2-rc.1`，并保留 `0.2.1-rc.2` / `rc.3` / `rc.4` / `rc.5`。此前的连接、任务与持久会话读取修复继续保留；实测范围见[验收记录](docs/verification.md)。
 
 让你的 Dot 读取 DeepSeek Harness 项目、查看已保存的会话，并给 Harness 派任务、继续任务、查看结果。任务使用你当前 Harness 的模型、工具和审批设置，可以修改项目文件、运行命令。
 
@@ -14,9 +14,9 @@
 
 在 Harness 会话中发送下面这句话：
 
-> 请使用 Harness 的官方插件管理工具，从 npm 安装并启用 @oxmumu3/dot-dsh-management@0.6.0-preview.24，保留已有连接、配置和任务；安装后打开侧栏「Dot 连接」，首次使用按提示登录自己的账号并确认授权。
+> 请使用 Harness 的官方插件管理工具，先查询 npm 上 @oxmumu3/dot-dsh-management 的 latest 标签对应版本，再安装并启用该精确版本，保留已有连接、配置和任务；安装后打开侧栏「Dot 连接」，首次使用按提示登录自己的账号并确认授权。
 
-pnpm 11 默认有 24 小时发布冷却期，`@latest` 可能仍选择成熟旧版；上方精确版本已通过官方 CLI 默认非 strict 路径验收。strict 客户端请保留策略，默认窗口需等到 **2026-11-05 17:31:48 UTC**；说明及本包自动记录的精确例外见[安装说明](docs/install-and-connect.md)。
+安装先解析 `latest` 再固定精确版本，避免包管理器的发布冷却选到旧版；本次默认安装路径已实测通过。使用严格冷却策略的客户端仍按其策略等待，说明见[安装说明](docs/install-and-connect.md)。
 
 如 Harness 提示安装审批，核对内容后确认。安装后打开「Dot 连接」，点击「连接我的 Dot」：
 
@@ -41,7 +41,7 @@ pnpm 11 默认有 24 小时发布冷却期，`@latest` 可能仍选择成熟旧�
 
 ## 日常使用
 
-Harness 需要保持运行，关闭「Dot 连接」页面不会停止后台连接。候选升级并刷新连接能力后，任务需要回答时可在 Dot 回复原始问题；需要操作审批时可明确本次允许或拒绝。Harness 仍保留原会话处理入口，插件不会自行批准。
+Harness 需要保持运行，关闭「Dot 连接」页面不会停止后台连接。升级并刷新连接能力后，任务需要回答时可在 Dot 回复原始问题；需要操作审批时可明确本次允许或拒绝。Harness 仍保留原会话处理入口，插件不会自行批准。
 
 要接着做，告诉 Dot 找到原任务并继续；超时或状态待核实时查询原任务，不要重新派发相同写操作。取消不会撤销已经执行的命令和文件修改；归档也不会删除项目文件。
 
@@ -59,7 +59,7 @@ Harness 需要保持运行，关闭「Dot 连接」页面不会停止后台连�
 
 ## 开发与接口
 
-用户只需要安装 `@oxmumu3/dot-dsh-management` 这一个原生插件。仓库根包 `dot-dsh-connector` 是开发与 MCP 配套源码，不作为第二个原生插件安装。开发候选提供六个读取工具和八个原生任务工具（共 14 项，须包含 `harness_answer_question` 与 `harness_decide_approval`）；原生任务沿用 Harness 已登记的真实项目与会话归属检查。
+用户只需要安装 `@oxmumu3/dot-dsh-management` 这一个原生插件。仓库根包 `dot-dsh-connector` 是开发与 MCP 配套源码，不作为第二个原生插件安装。当前版本提供六个读取工具和八个原生任务工具（共 14 项，须包含 `harness_answer_question` 与 `harness_decide_approval`）；原生任务沿用 Harness 已登记的真实项目与会话归属检查。
 
 [工具与原生任务](docs/native-execution-usage.md) · [读取与分页](docs/harness-read-usage.md) · [管理界面](docs/management-usage.md) · [旧部署维护](docs/operator-runbook.md)
 
